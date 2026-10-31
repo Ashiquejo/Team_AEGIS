@@ -1,0 +1,432 @@
+{% extends "base.html" %}
+
+{% block title %}Quotation Templates & Offers - Brightloop Software{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Quotation Templates & Customer Offers</h1>
+    <p class="page-subtitle">Standardize sales offers with pre-configured plans, product lines, and automated validity periods.</p>
+  </div>
+  <div class="header-actions">
+    <button onclick="openModal('newQuoteModal')" class="btn btn-primary">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Generate Quote for Customer
+    </button>
+  </div>
+</div>
+
+<!-- Section 1: Pre-defined Quotation Templates -->
+<div class="card" style="margin-bottom: 2rem;">
+  <div class="card-header">
+    <h3 class="card-title">Pre-configured Quotation Templates</h3>
+    <span class="user-pill">Fast-track Sales Offers</span>
+  </div>
+  <div class="card-body" style="padding: 0;">
+    <div class="table-responsive">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Template Name</th>
+            <th>Plan Attached</th>
+            <th>Validity Window</th>
+            <th>Included Lines & Products</th>
+            <th style="text-align: right;">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for t in templates %}
+          <tr>
+            <td>
+              <strong style="font-size:1rem; color:#0f172a;">{{ t.name }}</strong>
+              <div style="font-size:0.8rem; color:#64748b;">{{ t.notes or '' }}</div>
+            </td>
+            <td>
+              <span class="user-pill" style="font-weight:600;">{{ t.plan_name }} ({{ t.billing_frequency }})</span>
+            </td>
+            <td>
+              <strong>{{ t.validity_days }} Days</strong> from issuance
+            </td>
+            <td>
+              <ul style="font-size:0.85rem; padding-left:1.2rem; color:#475569;">
+                {% for line in t.lines %}
+                  <li>{{ line.quantity }}x {{ line.product_name }} {% if line.variant_name %}({{ line.variant_name }}){% endif %} @ ${{ "{:,.2f}".format(line.unit_price) }}</li>
+                {% endfor %}
+              </ul>
+            </td>
+            <td style="text-align: right;">
+              <button onclick="useTemplateToQuote({{ t.id }}, '{{ t.name }}', {{ t.plan_id }}, {{ t.validity_days }})" class="btn btn-primary btn-sm">
+                Use Template &rarr;
+              </button>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Section 2: Active Customer Quotations Pending Acceptance -->
+<div class="card">
+  <div class="card-header">
+    <h3 class="card-title">Quotations Awaiting Confirmation</h3>
+    <span class="status-pill status-quotation">Under Review</span>
+  </div>
+  <div class="card-body" style="padding: 0;">
+    <div class="table-responsive">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Quote #</th>
+            <th>Customer</th>
+            <th>Plan</th>
+            <th>Valid Until / Expiry</th>
+            <th>Payment Terms</th>
+            <th>Contract Value</th>
+            <th style="text-align: right;">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for q in quotations %}
+          <tr>
+            <td>
+              <a href="/subscriptions/{{ q.id }}" style="font-weight:700; color:#4f46e5; text-decoration:none;">
+                {{ q.subscription_number }}
+              </a>
+            </td>
+            <td>
+              <strong>{{ q.company_name or q.customer_name }}</strong>
+              <div style="font-size:0.75rem; color:#64748b;">{{ q.customer_email }}</div>
+            </td>
+            <td>{{ q.plan_name }} ({{ q.billing_frequency }})</td>
+            <td>
+              <strong style="color:#4f46e5;">{{ q.expiry_date or 'No expiry' }}</strong>
+            </td>
+            <td>{{ q.payment_terms or 'Net 30' }}</td>
+            <td style="font-weight:800; color:#0f172a;">
+              ${{ "{:,.2f}".format(q.total_subtotal or 0.0) }}
+            </td>
+            <td style="text-align: right;">
+              <button onclick="updateSubscriptionStatus({{ q.id }}, 'confirmed')" class="btn btn-success btn-sm">
+                Confirm &rarr;
+              </button>
+              <a href="/subscriptions/{{ q.id }}" class="btn btn-secondary btn-sm">Inspect</a>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="7" style="text-align: center; color: #94a3b8; padding: 2rem;">
+              No quotes currently pending customer confirmation.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Generate Quote for Customer -->
+<div class="modal-overlay" id="newQuoteModal">
+  <div class="modal-box" style="max-width: 750px;">
+    <div class="modal-header">
+      <h3 class="modal-title">Generate Customer Quote & Subscription</h3>
+      <button class="modal-close" onclick="closeModal('newQuoteModal')">&times;</button>
+    </div>
+    <form onsubmit="submitNewQuote(event)">
+      <div class="modal-body">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Customer Account</label>
+            <select id="quote-customer" class="form-select" required>
+              <option value="">-- Select Customer --</option>
+              {% for c in customers %}
+                <option value="{{ c.id }}">{{ c.company_name or c.name }} ({{ c.email }})</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Start From Quotation Template</label>
+            <select id="quote-template-select" class="form-select" onchange="onSelectTemplate(this.value)">
+              <option value="">-- Custom Quote (No Template) --</option>
+              {% for t in templates %}
+                <option value="{{ t.id }}" data-plan="{{ t.plan_id }}" data-days="{{ t.validity_days }}">{{ t.name }} ({{ t.validity_days }} days validity)</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Subscription Plan</label>
+            <select id="quote-plan" class="form-select" required>
+              {% for p in plans %}
+                <option value="{{ p.id }}">{{ p.name }} ({{ p.billing_frequency }}) - ${{ "{:,.2f}".format(p.base_price) }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Payment Terms</label>
+            <select id="quote-terms" class="form-select">
+              <option value="Net 30">Net 30</option>
+              <option value="Net 15">Net 15</option>
+              <option value="Net 60">Net 60</option>
+              <option value="Due upon receipt">Due upon receipt</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Start Date</label>
+            <input type="date" id="quote-start" class="form-input" value="{{ today_date }}" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Validity Duration (Days)</label>
+            <input type="number" id="quote-validity-days" class="form-input" value="30" required>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Apply Discount Concession (Optional)</label>
+          <select id="quote-discount" class="form-select">
+            <option value="">-- No Discount --</option>
+            {% for d in discounts %}
+              <option value="{{ d.id }}">{{ d.code }} - {{ d.description }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <!-- Line items builder -->
+        <div style="border-top:1px solid #e2e8f0; padding-top:1rem; margin-top:1rem;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+            <label class="form-label" style="margin:0;">Quote Product Lines</label>
+            <button type="button" onclick="addQuoteLineRow()" class="btn btn-secondary btn-sm">+ Add Line Item</button>
+          </div>
+
+          <div id="quote-lines-container">
+            <!-- Dynamic rows will be inserted here -->
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('newQuoteModal')">Cancel</button>
+        <button type="submit" class="btn btn-primary">Generate Quotation</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+const productsCatalog = {{ products_json|safe }};
+const templatesCatalog = {{ templates_json|safe }};
+const taxesCatalog = {{ taxes_json|safe }};
+
+function addQuoteLineRow(prodId = null, varId = null, qty = 1, price = null, taxId = null) {
+  const container = document.getElementById('quote-lines-container');
+  const rowId = 'row-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4);
+
+  const row = document.createElement('div');
+  row.id = rowId;
+  row.className = 'form-row';
+  row.style.alignItems = 'flex-end';
+  row.style.marginBottom = '0.75rem';
+  row.style.background = '#f8fafc';
+  row.style.padding = '0.75rem';
+  row.style.borderRadius = '6px';
+  row.style.border = '1px solid #e2e8f0';
+
+  let prodOptions = '<option value="">-- Product --</option>';
+  productsCatalog.forEach(p => {
+    prodOptions += `<option value="${p.id}" ${prodId == p.id ? 'selected' : ''} data-price="${p.sales_price}">${p.name} ($${p.sales_price})</option>`;
+  });
+
+  let taxOptions = '<option value="">No Tax (0%)</option>';
+  taxesCatalog.forEach(t => {
+    taxOptions += `<option value="${t.id}" ${taxId == t.id ? 'selected' : ''}>${t.name}</option>`;
+  });
+
+  row.innerHTML = `
+    <div style="flex: 2;">
+      <label style="font-size:0.75rem; font-weight:600; color:#475569;">Product</label>
+      <select class="form-select line-prod" onchange="onLineProductChange('${rowId}', this.value)" required>
+        ${prodOptions}
+      </select>
+    </div>
+    <div style="flex: 2;">
+      <label style="font-size:0.75rem; font-weight:600; color:#475569;">Variant</label>
+      <select class="form-select line-var" onchange="onLineVariantChange('${rowId}')">
+        <option value="">Standard Edition</option>
+      </select>
+    </div>
+    <div style="flex: 1;">
+      <label style="font-size:0.75rem; font-weight:600; color:#475569;">Qty</label>
+      <input type="number" class="form-input line-qty" value="${qty}" min="1" required>
+    </div>
+    <div style="flex: 1.5;">
+      <label style="font-size:0.75rem; font-weight:600; color:#475569;">Unit Price ($)</label>
+      <input type="number" step="0.01" class="form-input line-price" value="${price !== null ? price : 0.00}" required>
+    </div>
+    <div style="flex: 1.5;">
+      <label style="font-size:0.75rem; font-weight:600; color:#475569;">Tax</label>
+      <select class="form-select line-tax">
+        ${taxOptions}
+      </select>
+    </div>
+    <div style="flex: 0.5;">
+      <button type="button" class="btn btn-danger btn-sm" onclick="document.getElementById('${rowId}').remove()">&times;</button>
+    </div>
+  `;
+
+  container.appendChild(row);
+
+  if (prodId) {
+    populateVariantsForRow(rowId, prodId, varId);
+  }
+}
+
+function onLineProductChange(rowId, prodId) {
+  const row = document.getElementById(rowId);
+  if (!row) return;
+  const prod = productsCatalog.find(p => p.id == prodId);
+  if (prod) {
+    row.querySelector('.line-price').value = prod.sales_price;
+    populateVariantsForRow(rowId, prodId, null);
+  }
+}
+
+function populateVariantsForRow(rowId, prodId, selectedVarId) {
+  const row = document.getElementById(rowId);
+  if (!row) return;
+  const prod = productsCatalog.find(p => p.id == prodId);
+  const varSelect = row.querySelector('.line-var');
+  varSelect.innerHTML = '<option value="">Standard (+$0.00)</option>';
+
+  if (prod && prod.variants) {
+    prod.variants.forEach(v => {
+      const isSel = selectedVarId == v.id ? 'selected' : '';
+      varSelect.innerHTML += `<option value="${v.id}" ${isSel} data-adj="${v.price_adjustment}">${v.variant_name} (+${v.price_adjustment})</option>`;
+    });
+  }
+  onLineVariantChange(rowId);
+}
+
+function onLineVariantChange(rowId) {
+  const row = document.getElementById(rowId);
+  if (!row) return;
+  const prodSelect = row.querySelector('.line-prod');
+  const varSelect = row.querySelector('.line-var');
+  const priceInput = row.querySelector('.line-price');
+
+  const prod = productsCatalog.find(p => p.id == prodSelect.value);
+  if (prod) {
+    let price = prod.sales_price;
+    const selectedVarOption = varSelect.options[varSelect.selectedIndex];
+    if (selectedVarOption && selectedVarOption.dataset.adj) {
+      price += parseFloat(selectedVarOption.dataset.adj || 0);
+    }
+    priceInput.value = price.toFixed(2);
+  }
+}
+
+function onSelectTemplate(templateId) {
+  const container = document.getElementById('quote-lines-container');
+  container.innerHTML = '';
+
+  if (!templateId) return;
+  const tmpl = templatesCatalog.find(t => t.id == templateId);
+  if (!tmpl) return;
+
+  if (tmpl.plan_id) {
+    document.getElementById('quote-plan').value = tmpl.plan_id;
+  }
+  if (tmpl.validity_days) {
+    document.getElementById('quote-validity-days').value = tmpl.validity_days;
+  }
+
+  if (tmpl.lines && tmpl.lines.length > 0) {
+    tmpl.lines.forEach(l => {
+      addQuoteLineRow(l.product_id, l.variant_id, l.quantity, l.unit_price, l.tax_id);
+    });
+  }
+}
+
+function useTemplateToQuote(templateId, name, planId, validityDays) {
+  openModal('newQuoteModal');
+  document.getElementById('quote-template-select').value = templateId;
+  onSelectTemplate(templateId);
+}
+
+// Initial line row when opening
+document.addEventListener("DOMContentLoaded", () => {
+  if (document.getElementById('quote-lines-container') && document.getElementById('quote-lines-container').children.length === 0) {
+    addQuoteLineRow();
+  }
+});
+
+async function submitNewQuote(event) {
+  event.preventDefault();
+  const customerId = document.getElementById('quote-customer').value;
+  const planId = document.getElementById('quote-plan').value;
+  const terms = document.getElementById('quote-terms').value;
+  const startDate = document.getElementById('quote-start').value;
+  const validityDays = parseInt(document.getElementById('quote-validity-days').value || 30, 10);
+  const discountId = document.getElementById('quote-discount').value || null;
+
+  const rows = document.querySelectorAll('#quote-lines-container .form-row');
+  const lines = [];
+
+  rows.forEach(r => {
+    const prodId = r.querySelector('.line-prod').value;
+    const varId = r.querySelector('.line-var').value || null;
+    const qty = parseInt(r.querySelector('.line-qty').value || 1, 10);
+    const unitPrice = parseFloat(r.querySelector('.line-price').value || 0);
+    const taxId = r.querySelector('.line-tax').value || null;
+
+    if (prodId) {
+      lines.push({
+        product_id: parseInt(prodId, 10),
+        variant_id: varId ? parseInt(varId, 10) : null,
+        quantity: qty,
+        unit_price: unitPrice,
+        tax_id: taxId ? parseInt(taxId, 10) : null
+      });
+    }
+  });
+
+  if (lines.length === 0) {
+    showToast("Please add at least one line item to the quote.", "error");
+    return;
+  }
+
+  const payload = {
+    customer_id: parseInt(customerId, 10),
+    plan_id: parseInt(planId, 10),
+    payment_terms: terms,
+    start_date: startDate,
+    validity_days: validityDays,
+    discount_id: discountId ? parseInt(discountId, 10) : null,
+    lines: lines
+  };
+
+  const res = await fetch('/api/quotes', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  const data = await res.json();
+  if (res.ok) {
+    showToast(`Quotation ${data.subscription.subscription_number} created successfully!`);
+    setTimeout(() => {
+      window.location.href = `/subscriptions/${data.subscription.id}`;
+    }, 1000);
+  } else {
+    showToast(data.message || "Failed to create quote", "error");
+  }
+}
+</script>
+{% endblock %}
+

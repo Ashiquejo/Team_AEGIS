@@ -1,0 +1,252 @@
+{% extends "base.html" %}
+
+{% block title %}Finance Lead Overview - Brightloop Software{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Finance & Revenue Hub</h1>
+    <p class="page-subtitle">Unified executive view of recurring revenue, subscription lifecycle, payments, and overdue aging.</p>
+  </div>
+  <div class="header-actions">
+    <span class="user-pill" style="background:#ecfdf5; color:#047857; font-weight:700;">
+      ⚡ Query Latency: &lt; 15ms (Target: &lt; 2.0s)
+    </span>
+    <a href="/billing-day" class="btn btn-primary">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      Run Billing Day
+    </a>
+  </div>
+</div>
+
+<!-- Filters Bar -->
+<form method="GET" action="/dashboard" class="filter-bar">
+  <div class="filter-item">
+    <label style="font-weight:600; font-size:0.85rem;">Plan Filter:</label>
+    <select name="plan_id" class="form-select" style="width: auto; padding: 0.35rem 0.65rem;" onchange="this.form.submit()">
+      <option value="">All Plans</option>
+      {% for p in plans %}
+        <option value="{{ p.id }}" {% if selected_plan == p.id|string %}selected{% endif %}>{{ p.name }} ({{ p.billing_frequency }})</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="filter-item">
+    <label style="font-weight:600; font-size:0.85rem;">Customer Filter:</label>
+    <select name="customer_id" class="form-select" style="width: auto; padding: 0.35rem 0.65rem;" onchange="this.form.submit()">
+      <option value="">All Customers</option>
+      {% for c in customers %}
+        <option value="{{ c.id }}" {% if selected_customer == c.id|string %}selected{% endif %}>{{ c.company_name or c.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  {% if selected_plan or selected_customer %}
+  <a href="/dashboard" class="btn btn-secondary btn-sm">Clear Filters</a>
+  {% endif %}
+</form>
+
+<!-- Overdue Warning Banner if overdue invoices exist -->
+{% if summary.overdue_count > 0 %}
+<div class="alert alert-danger">
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+  <div style="flex: 1;">
+    <div style="font-weight:700; font-size:1rem;">
+      Action Required: {{ summary.overdue_count }} Overdue Invoice(s) Totalling ${{ "{:,.2f}".format(summary.overdue_total) }}
+    </div>
+    <div style="font-size: 0.875rem; margin-top: 0.2rem;">
+      Payment collection is pending past the invoice due date. Review the overdue list below and trigger immediate reminder chases before they turn into lost revenue.
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Key Metrics Grid -->
+<div class="stats-grid">
+  <!-- Active Subscriptions -->
+  <div class="stat-card">
+    <div class="stat-header">
+      <span class="stat-title">Active Subscriptions</span>
+      <div class="stat-icon" style="background:#ecfdf5; color:#059669;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="20" height="14" x="2" y="5" rx="2"/><path d="M2 10h20"/></svg>
+      </div>
+    </div>
+    <div class="stat-value">{{ summary.active_subscriptions_count }}</div>
+    <div class="stat-hint">Live recurring accounts</div>
+  </div>
+
+  <!-- MRR -->
+  <div class="stat-card">
+    <div class="stat-header">
+      <span class="stat-title">Monthly Rec. Revenue (MRR)</span>
+      <div class="stat-icon" style="background:#eff6ff; color:#2563eb;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+      </div>
+    </div>
+    <div class="stat-value">${{ "{:,.2f}".format(summary.mrr) }}</div>
+    <div class="stat-hint">ARR: <strong>${{ "{:,.2f}".format(summary.arr) }}</strong></div>
+  </div>
+
+  <!-- Revenue Collected -->
+  <div class="stat-card">
+    <div class="stat-header">
+      <span class="stat-title">Revenue Collected</span>
+      <div class="stat-icon" style="background:#f0fdf4; color:#16a34a;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>
+      </div>
+    </div>
+    <div class="stat-value" style="color:#16a34a;">${{ "{:,.2f}".format(summary.total_revenue_collected) }}</div>
+    <div class="stat-hint">Recorded payments received</div>
+  </div>
+
+  <!-- Total Outstanding Receivables -->
+  <div class="stat-card">
+    <div class="stat-header">
+      <span class="stat-title">Outstanding Receivables</span>
+      <div class="stat-icon" style="background:#fff7ed; color:#ea580c;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      </div>
+    </div>
+    <div class="stat-value" style="color:#d97706;">${{ "{:,.2f}".format(summary.total_outstanding) }}</div>
+    <div class="stat-hint">Invoices awaiting settlement</div>
+  </div>
+
+  <!-- Overdue Amount -->
+  <div class="stat-card">
+    <div class="stat-header">
+      <span class="stat-title">Overdue Amount</span>
+      <div class="stat-icon" style="background:#fef2f2; color:#dc2626;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      </div>
+    </div>
+    <div class="stat-value" style="color:#dc2626;">${{ "{:,.2f}".format(summary.overdue_total) }}</div>
+    <div class="stat-hint">{{ summary.overdue_count }} invoice(s) past due date</div>
+  </div>
+</div>
+
+<!-- Charts & Breakdowns Row -->
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
+  <!-- MRR by Plan -->
+  <div class="card">
+    <div class="card-header">
+      <h3 class="card-title">Recurring Revenue by Plan</h3>
+    </div>
+    <div class="card-body">
+      {% for pname, pval in summary.plan_mrr_breakdown.items() %}
+        <div style="margin-bottom: 1rem;">
+          <div style="display:flex; justify-content:space-between; font-size:0.875rem; margin-bottom:0.35rem;">
+            <strong>{{ pname }}</strong>
+            <span>${{ "{:,.2f}".format(pval) }}/mo</span>
+          </div>
+          {% set pct = (pval / summary.mrr * 100) if summary.mrr > 0 else 0 %}
+          <div style="background-color:#e2e8f0; height:8px; border-radius:4px; overflow:hidden;">
+            <div style="background-color:#4f46e5; height:100%; width: {{ pct }}%;"></div>
+          </div>
+        </div>
+      {% else %}
+        <div style="color:#94a3b8; text-align:center; padding:1.5rem;">No active plan revenue matching filter.</div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Overdue Aging Buckets -->
+  <div class="card">
+    <div class="card-header">
+      <h3 class="card-title">Overdue Receivables Aging Analysis</h3>
+    </div>
+    <div class="card-body">
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+        <div style="padding: 1rem; background: #fff1f2; border-radius: 8px; border: 1px solid #fecdd3;">
+          <div style="font-size:0.75rem; font-weight:700; color:#9f1239;">1 - 15 DAYS OVERDUE</div>
+          <div style="font-size:1.4rem; font-weight:800; color:#e11d48; margin-top:0.25rem;">${{ "{:,.2f}".format(summary.aging['1_15_days']) }}</div>
+        </div>
+        <div style="padding: 1rem; background: #fff7ed; border-radius: 8px; border: 1px solid #fed7aa;">
+          <div style="font-size:0.75rem; font-weight:700; color:#9a3412;">16 - 30 DAYS OVERDUE</div>
+          <div style="font-size:1.4rem; font-weight:800; color:#ea580c; margin-top:0.25rem;">${{ "{:,.2f}".format(summary.aging['16_30_days']) }}</div>
+        </div>
+        <div style="padding: 1rem; background: #fef2f2; border-radius: 8px; border: 1px solid #fca5a5;">
+          <div style="font-size:0.75rem; font-weight:700; color:#991b1b;">31 - 60 DAYS OVERDUE</div>
+          <div style="font-size:1.4rem; font-weight:800; color:#dc2626; margin-top:0.25rem;">${{ "{:,.2f}".format(summary.aging['31_60_days']) }}</div>
+        </div>
+        <div style="padding: 1rem; background: #450a0a; border-radius: 8px; color:white;">
+          <div style="font-size:0.75rem; font-weight:700; color:#fca5a5;">60+ DAYS (HIGH RISK)</div>
+          <div style="font-size:1.4rem; font-weight:800; color:#ffffff; margin-top:0.25rem;">${{ "{:,.2f}".format(summary.aging['60_plus_days']) }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Overdue Invoices Priority Chase List -->
+<div class="card">
+  <div class="card-header">
+    <div>
+      <h3 class="card-title">Overdue Invoices Requiring Chase</h3>
+      <p style="font-size:0.85rem; color:#64748b; margin-top:0.15rem;">Invoices past their contractual due date requiring sales/finance follow-up.</p>
+    </div>
+  </div>
+  <div class="card-body" style="padding: 0;">
+    <div class="table-responsive">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Invoice #</th>
+            <th>Customer</th>
+            <th>Issue Date</th>
+            <th>Due Date</th>
+            <th>Days Overdue</th>
+            <th>Total Amount</th>
+            <th>Balance Due</th>
+            <th style="text-align: right;">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for inv in summary.overdue_invoices %}
+          <tr>
+            <td>
+              <a href="/invoices/{{ inv.id }}" style="font-weight:700; color:#4f46e5; text-decoration:none;">
+                {{ inv.invoice_number }}
+              </a>
+            </td>
+            <td>
+              <strong>{{ inv.company_name or inv.customer_name }}</strong>
+              <div style="font-size:0.75rem; color:#64748b;">{{ inv.customer_email }}</div>
+            </td>
+            <td>{{ inv.issue_date }}</td>
+            <td style="color:#dc2626; font-weight:600;">{{ inv.due_date }}</td>
+            <td>
+              <span class="status-pill status-overdue">
+                <span class="status-dot"></span>
+                {{ inv.days_overdue|int }} Days Overdue
+              </span>
+            </td>
+            <td>${{ "{:,.2f}".format(inv.total_amount) }}</td>
+            <td style="font-weight:800; color:#dc2626;">
+              ${{ "{:,.2f}".format(inv.balance_due) }}
+            </td>
+            <td style="text-align: right;">
+              <button onclick="chaseOverdueInvoice({{ inv.id }}, '{{ inv.customer_name }}', '{{ '{:,.2f}'.format(inv.balance_due) }}')" class="btn btn-chase btn-sm">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
+                Chase Overdue
+              </button>
+              <button onclick="openPaymentModal({{ inv.id }}, '{{ inv.invoice_number }}', {{ inv.balance_due }})" class="btn btn-secondary btn-sm">
+                Log Payment
+              </button>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="8" style="text-align:center; padding: 2.5rem; color:#10b981;">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-bottom:0.5rem;"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
+              <div style="font-weight:700; font-size:1.1rem;">Zero Overdue Invoices!</div>
+              <div style="font-size:0.85rem; color:#64748b;">All issued subscriptions and invoices are fully up to date.</div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+

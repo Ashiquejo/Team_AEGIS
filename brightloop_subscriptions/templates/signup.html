@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block title %}Create Account - Brightloop Software{% endblock %}
+
+{% block content %}
+<div style="max-width: 520px; margin: 2rem auto;">
+  <div class="card" style="box-shadow: var(--shadow-lg);">
+    <div class="card-header" style="text-align: center; display:block; padding: 2rem 2rem 1rem;">
+      <h2 style="font-size: 1.5rem; font-weight: 800; color:#0f172a;">Join Brightloop Software</h2>
+      <p style="font-size: 0.875rem; color:#64748b; margin-top:0.25rem;">Create your self-service customer billing account</p>
+    </div>
+
+    <div class="card-body" style="padding: 1.5rem 2rem;">
+      <form onsubmit="handleSignupSubmit(event)">
+        <div class="form-group">
+          <label class="form-label">Full Name</label>
+          <input type="text" id="reg-name" class="form-input" placeholder="e.g. Jane Doe" required>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Company / Business Name</label>
+          <input type="text" id="reg-company" class="form-input" placeholder="e.g. Acme Corner Shop" required>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Email Address (Must be unique)</label>
+          <input type="email" id="reg-email" class="form-input" placeholder="jane@acmeshop.com" required>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Password</label>
+          <input type="password" id="reg-password" class="form-input" required>
+          
+          <!-- Live Password Validation Rules Checklist -->
+          <div style="margin-top: 0.6rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 0.75rem; font-size: 0.775rem;">
+            <div style="font-weight: 700; color: #475569; margin-bottom: 0.35rem;">Password Requirements:</div>
+            <div id="rule-len" data-label="More than 8 characters long (> 8 chars)" style="color: #94a3b8;">• More than 8 characters long (> 8 chars)</div>
+            <div id="rule-upper" data-label="At least one uppercase letter (A-Z)" style="color: #94a3b8;">• At least one uppercase letter (A-Z)</div>
+            <div id="rule-lower" data-label="At least one lowercase letter (a-z)" style="color: #94a3b8;">• At least one lowercase letter (a-z)</div>
+            <div id="rule-spec" data-label="At least one special character (!@#$%^&*...)" style="color: #94a3b8;">• At least one special character (!@#$%^&*...)</div>
+          </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary" style="width: 100%; padding:0.75rem; font-size:1rem; margin-top:0.5rem;">
+          Create Customer Account &rarr;
+        </button>
+      </form>
+
+      <div style="text-align: center; margin-top: 1.5rem; padding-top: 1.25rem; border-top: 1px solid #e2e8f0; font-size: 0.875rem;">
+        Already have an account? <a href="/login" style="color: #4f46e5; font-weight: 600; text-decoration:none;">Sign in</a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  setupPasswordValidator("reg-password");
+});
+
+async function handleSignupSubmit(event) {
+  event.preventDefault();
+  const name = document.getElementById('reg-name').value;
+  const company = document.getElementById('reg-company').value;
+  const email = document.getElementById('reg-email').value;
+  const password = document.getElementById('reg-password').value;
+
+  const res = await fetch('/api/auth/signup', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, company_name: company, email, password })
+  });
+  const data = await res.json();
+  if (res.ok) {
+    showToast("Account created successfully! Welcome to Brightloop.");
+    setTimeout(() => {
+      window.location.href = '/portal';
+    }, 1000);
+  } else {
+    showToast(data.message || "Failed to create account", "error");
+  }
+}
+</script>
+{% endblock %}
+

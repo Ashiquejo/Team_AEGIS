@@ -1,0 +1,247 @@
+{% extends "base.html" %}
+
+{% block title %}Discount Rules - Brightloop Software{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Discount Rules & Price Concessions</h1>
+    <p class="page-subtitle">Admin-controlled discount policies: seat volume discounts, flash offers, usage caps, and product-specific scopes.</p>
+  </div>
+  <div class="header-actions">
+    <button onclick="openModal('newDiscountModal')" class="btn btn-primary">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Create Discount Rule
+    </button>
+  </div>
+</div>
+
+<div class="alert alert-info">
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+  <div>
+    <strong>Automated Billing Day Integration:</strong> When assigned to a subscription, active discounts are evaluated automatically on every billing cycle without requiring manual reminder. If minimum quantities/spend are satisfied, the discount is calculated and recorded on the generated invoice. When usage limits (<code>max_uses</code>) are reached or the end date passes, the discount expires cleanly and stops applying.
+  </div>
+</div>
+
+<!-- Discounts Table -->
+<div class="card">
+  <div class="card-body" style="padding: 0;">
+    <div class="table-responsive">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Code & Description</th>
+            <th>Discount Value</th>
+            <th>Scope</th>
+            <th>Conditions (Min Qty / Spend)</th>
+            <th>Validity Window</th>
+            <th>Usage Cap & Redemptions</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for d in discounts %}
+          <tr>
+            <td>
+              <strong style="font-size:1rem; color:#4f46e5;">{{ d.code }}</strong>
+              <div style="font-size:0.8rem; color:#64748b; margin-top:0.2rem;">{{ d.description or 'No notes' }}</div>
+            </td>
+            <td>
+              <div style="font-size:1.1rem; font-weight:800; color:#0f172a;">
+                {% if d.discount_type == 'percentage' %}
+                  {{ d.value }}% OFF
+                {% else %}
+                  ${{ "{:,.2f}".format(d.value) }} FIXED
+                {% endif %}
+              </div>
+            </td>
+            <td>
+              {% if d.scope == 'whole_subscription' %}
+                <span class="user-pill" style="background:#f0fdf4; color:#15803d; font-weight:600;">Whole Contract</span>
+              {% else %}
+                <span class="user-pill" style="background:#eff6ff; color:#1d4ed8; font-weight:600;">
+                  Product: {{ d.applicable_product_name or 'Specific' }}
+                </span>
+              {% endif %}
+            </td>
+            <td>
+              <div style="font-size:0.85rem;">
+                {% if d.min_quantity > 0 %}
+                  <div>&bull; Min Quantity: <strong>{{ d.min_quantity }} seats</strong></div>
+                {% endif %}
+                {% if d.min_purchase_amount > 0 %}
+                  <div>&bull; Min Spend: <strong>${{ "{:,.2f}".format(d.min_purchase_amount) }}</strong></div>
+                {% endif %}
+                {% if not d.min_quantity and not d.min_purchase_amount %}
+                  <span style="color:#94a3b8;">No min requirement</span>
+                {% endif %}
+              </div>
+            </td>
+            <td style="font-size:0.85rem;">
+              {{ d.start_date or 'Any' }} &rarr; {{ d.end_date or 'No Expiry' }}
+              {% if d.is_expired %}
+                <div style="color:#dc2626; font-weight:700; font-size:0.75rem;">(Expired)</div>
+              {% endif %}
+            </td>
+            <td>
+              <div>
+                <strong>{{ d.used_count }}</strong>
+                {% if d.max_uses %}
+                  / {{ d.max_uses }} max
+                {% else %}
+                  (Unlimited)
+                {% endif %}
+              </div>
+              {% if d.max_uses and d.used_count >= d.max_uses %}
+                <span style="color:#dc2626; font-size:0.75rem; font-weight:700;">Cap Reached</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if d.is_active and not d.is_expired and (not d.max_uses or d.used_count < d.max_uses) %}
+                <span class="status-pill status-active">
+                  <span class="status-dot"></span>
+                  Active
+                </span>
+              {% else %}
+                <span class="status-pill status-closed">
+                  <span class="status-dot"></span>
+                  Inactive
+                </span>
+              {% endif %}
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="7" style="text-align:center; padding: 2rem; color:#94a3b8;">
+              No discount rules configured yet.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Create Discount -->
+<div class="modal-overlay" id="newDiscountModal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3 class="modal-title">Create Admin Discount Rule</h3>
+      <button class="modal-close" onclick="closeModal('newDiscountModal')">&times;</button>
+    </div>
+    <form onsubmit="submitNewDiscount(event)">
+      <div class="modal-body">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Discount Code</label>
+            <input type="text" id="disc-code" class="form-input" placeholder="e.g. SEATS20" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Type</label>
+            <select id="disc-type" class="form-select" required>
+              <option value="percentage">Percentage (%)</option>
+              <option value="fixed">Fixed Amount ($)</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Discount Value</label>
+            <input type="number" step="0.01" id="disc-val" class="form-input" placeholder="e.g. 15 for 15% or 200 for $200" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Max Allowed Redemptions</label>
+            <input type="number" id="disc-max-uses" class="form-input" placeholder="Leave empty for unlimited">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Min Quantity / Seats</label>
+            <input type="number" id="disc-min-qty" class="form-input" value="0">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Min Purchase Amount ($)</label>
+            <input type="number" step="0.01" id="disc-min-amount" class="form-input" value="0.00">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Start Date</label>
+            <input type="date" id="disc-start" class="form-input">
+          </div>
+          <div class="form-group">
+            <label class="form-label">End Date</label>
+            <input type="date" id="disc-end" class="form-input">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Application Scope</label>
+          <select id="disc-scope" class="form-select" onchange="toggleScopeProduct(this.value)">
+            <option value="whole_subscription">Apply to Entire Subscription Subtotal</option>
+            <option value="specific_product">Apply to Specific Product Only</option>
+          </select>
+        </div>
+        <div class="form-group" id="scope-prod-group" style="display:none;">
+          <label class="form-label">Applicable Product</label>
+          <select id="disc-product" class="form-select">
+            {% for p in products %}
+              <option value="{{ p.id }}">{{ p.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Description / Concession Reason</label>
+          <textarea id="disc-desc" class="form-textarea" rows="2" placeholder="e.g. Volume discount for 10+ seats or special client negotiation..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('newDiscountModal')">Cancel</button>
+        <button type="submit" class="btn btn-primary">Create Discount</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function toggleScopeProduct(val) {
+  document.getElementById('scope-prod-group').style.display = val === 'specific_product' ? 'block' : 'none';
+}
+
+async function submitNewDiscount(event) {
+  event.preventDefault();
+  const maxUsesVal = document.getElementById('disc-max-uses').value;
+  const scopeVal = document.getElementById('disc-scope').value;
+
+  const body = {
+    code: document.getElementById('disc-code').value.trim().toUpperCase(),
+    discount_type: document.getElementById('disc-type').value,
+    value: parseFloat(document.getElementById('disc-val').value),
+    min_quantity: parseInt(document.getElementById('disc-min-qty').value || 0, 10),
+    min_purchase_amount: parseFloat(document.getElementById('disc-min-amount').value || 0),
+    start_date: document.getElementById('disc-start').value || null,
+    end_date: document.getElementById('disc-end').value || null,
+    max_uses: maxUsesVal ? parseInt(maxUsesVal, 10) : null,
+    scope: scopeVal,
+    applicable_product_id: scopeVal === 'specific_product' ? parseInt(document.getElementById('disc-product').value, 10) : null,
+    description: document.getElementById('disc-desc').value
+  };
+
+  const res = await fetch('/api/discounts', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  const data = await res.json();
+  if (res.ok) {
+    showToast("Discount rule created successfully!");
+    setTimeout(() => window.location.reload(), 800);
+  } else {
+    showToast(data.message || "Failed to create discount", "error");
+  }
+}
+</script>
+{% endblock %}
+

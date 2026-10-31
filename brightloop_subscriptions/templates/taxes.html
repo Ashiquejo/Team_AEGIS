@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+
+{% block title %}Tax Rules - Brightloop Software{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Tax Rules & Calculation Policies</h1>
+    <p class="page-subtitle">Configure VAT, GST, state sales taxes, or service tax rates automatically applied to subscriptions and invoices.</p>
+  </div>
+  {% if current_user.role == 'admin' %}
+  <div class="header-actions">
+    <button onclick="openModal('newTaxModal')" class="btn btn-primary">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Add Tax Rule
+    </button>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Tax Rules Table -->
+<div class="card">
+  <div class="card-body" style="padding: 0;">
+    <div class="table-responsive">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Tax Name</th>
+            <th>Rate / Amount</th>
+            <th>Type</th>
+            <th>Default for New Lines</th>
+            <th>Description</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for t in taxes %}
+          <tr>
+            <td>
+              <strong style="color:#0f172a; font-size:1rem;">{{ t.name }}</strong>
+            </td>
+            <td>
+              <span style="font-size:1.1rem; font-weight:800; color:#4f46e5;">
+                {% if t.is_fixed %}
+                  ${{ "{:,.2f}".format(t.rate) }} fixed
+                {% else %}
+                  {{ t.rate }}%
+                {% endif %}
+              </span>
+            </td>
+            <td>{{ 'Fixed Amount' if t.is_fixed else 'Percentage (%)' }}</td>
+            <td>
+              {% if t.is_default %}
+                <span class="status-pill status-active">Default</span>
+              {% else %}
+                <span style="color:#94a3b8;">Optional</span>
+              {% endif %}
+            </td>
+            <td style="color:#64748b; font-size:0.875rem;">{{ t.description or '—' }}</td>
+            <td>
+              <span class="status-pill status-active">
+                <span class="status-dot"></span>
+                Active
+              </span>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="6" style="text-align:center; padding: 2rem; color:#94a3b8;">
+              No tax rules configured.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: New Tax Rule -->
+<div class="modal-overlay" id="newTaxModal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3 class="modal-title">Create Tax Rule</h3>
+      <button class="modal-close" onclick="closeModal('newTaxModal')">&times;</button>
+    </div>
+    <form onsubmit="submitNewTax(event)">
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Tax Name</label>
+          <input type="text" id="tax-name" class="form-input" placeholder="e.g. EU Standard VAT 20%" required>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Rate / Value</label>
+            <input type="number" step="0.01" id="tax-rate" class="form-input" placeholder="e.g. 10.0 for 10%" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Calculation Type</label>
+            <select id="tax-is-fixed" class="form-select">
+              <option value="0">Percentage of Line Subtotal (%)</option>
+              <option value="1">Fixed Surcharge per Item ($)</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label style="display:flex; align-items:center; gap:0.5rem; font-size:0.875rem;">
+            <input type="checkbox" id="tax-is-default">
+            <strong>Set as default tax rule for new subscription lines</strong>
+          </label>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Notes / Statutory Reference</label>
+          <textarea id="tax-desc" class="form-textarea" rows="2" placeholder="e.g. Applicable to European business software services..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('newTaxModal')">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save Tax Rule</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+async function submitNewTax(event) {
+  event.preventDefault();
+  const body = {
+    name: document.getElementById('tax-name').value,
+    rate: parseFloat(document.getElementById('tax-rate').value),
+    is_fixed: parseInt(document.getElementById('tax-is-fixed').value, 10),
+    is_default: document.getElementById('tax-is-default').checked ? 1 : 0,
+    description: document.getElementById('tax-desc').value
+  };
+
+  const res = await fetch('/api/taxes', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  const data = await res.json();
+  if (res.ok) {
+    showToast("Tax rule saved successfully!");
+    setTimeout(() => window.location.reload(), 800);
+  } else {
+    showToast(data.message || "Failed to save tax rule", "error");
+  }
+}
+</script>
+{% endblock %}
+

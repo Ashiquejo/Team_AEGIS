@@ -1,0 +1,219 @@
+{% extends "base.html" %}
+
+{% block title %}Plans & Billing Cadences - Brightloop Software{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Plans & Subscription Rules</h1>
+    <p class="page-subtitle">Configure billing cadences (Daily, Weekly, Monthly, Yearly) and admin-controlled lifecycle policies.</p>
+  </div>
+  {% if current_user.role == 'admin' %}
+  <div class="header-actions">
+    <button onclick="openModal('newPlanModal')" class="btn btn-primary">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Create New Plan
+    </button>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Plans Grid -->
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.5rem;">
+  {% for p in plans %}
+  <div class="card" style="display:flex; flex-direction:column; justify-content:space-between;">
+    <div>
+      <div class="card-header" style="border-bottom:none; padding-bottom:0.5rem;">
+        <div>
+          <span class="user-pill" style="font-weight:700; text-transform:uppercase; font-size:0.75rem; color:#4f46e5;">
+            {{ p.billing_frequency }}
+          </span>
+          <h3 class="card-title" style="margin-top:0.4rem; font-size:1.25rem;">{{ p.name }}</h3>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:1.6rem; font-weight:800; color:#0f172a;">${{ "{:,.2f}".format(p.base_price) }}</div>
+          <span style="font-size:0.75rem; color:#64748b;">/ {{ p.billing_frequency }}</span>
+        </div>
+      </div>
+
+      <div class="card-body" style="padding-top:0.5rem;">
+        <p style="font-size:0.875rem; color:#475569; margin-bottom:1.25rem;">
+          {{ p.description or 'Standard subscription tier.' }}
+        </p>
+
+        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:0.85rem; font-size:0.85rem; margin-bottom:1rem;">
+          <div style="display:flex; justify-content:space-between; margin-bottom:0.35rem;">
+            <span style="color:#64748b;">Plan Code:</span>
+            <strong><code>{{ p.code }}</code></strong>
+          </div>
+          <div style="display:flex; justify-content:space-between; margin-bottom:0.35rem;">
+            <span style="color:#64748b;">Min. Quantity:</span>
+            <strong>{{ p.min_quantity }} seat(s)</strong>
+          </div>
+          <div style="display:flex; justify-content:space-between;">
+            <span style="color:#64748b;">Availability:</span>
+            <span>{{ p.available_from or 'Immediate' }} &rarr; {{ p.available_to or 'Indefinite' }}</span>
+          </div>
+        </div>
+
+        <div style="font-size:0.8rem; border-top:1px solid #f1f5f9; padding-top:0.75rem;">
+          <div style="font-weight:700; color:#334155; margin-bottom:0.4rem; text-transform:uppercase; letter-spacing:0.04em;">
+            Admin Lifecycle Rules
+          </div>
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:0.4rem;">
+            <div>
+              Auto-close on end:
+              <strong style="color:{% if p.auto_close_on_end %}#16a34a{% else %}#dc2626{% endif %};">
+                {{ 'Yes' if p.auto_close_on_end else 'No' }}
+              </strong>
+            </div>
+            <div>
+              Can close early:
+              <strong style="color:{% if p.can_close_early %}#16a34a{% else %}#dc2626{% endif %};">
+                {{ 'Yes' if p.can_close_early else 'No' }}
+              </strong>
+            </div>
+            <div>
+              Can pause/resume:
+              <strong style="color:{% if p.can_pause %}#16a34a{% else %}#dc2626{% endif %};">
+                {{ 'Yes' if p.can_pause else 'No' }}
+              </strong>
+            </div>
+            <div>
+              Can renew:
+              <strong style="color:{% if p.can_renew %}#16a34a{% else %}#dc2626{% endif %};">
+                {{ 'Yes' if p.can_renew else 'No' }}
+              </strong>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="padding:1rem 1.5rem; background:#f8fafc; border-top:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
+      <span class="status-pill status-active">Active</span>
+      <span style="font-size:0.75rem; color:#64748b;">Controlled plan-by-plan</span>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Modal: Create Plan -->
+<div class="modal-overlay" id="newPlanModal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3 class="modal-title">Create Subscription Plan</h3>
+      <button class="modal-close" onclick="closeModal('newPlanModal')">&times;</button>
+    </div>
+    <form onsubmit="submitNewPlan(event)">
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Plan Name</label>
+          <input type="text" id="plan-name" class="form-input" placeholder="e.g. Quarterly Growth Tier" required>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Plan Code</label>
+            <input type="text" id="plan-code" class="form-input" placeholder="PLAN-Q-GROW" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Billing Cadence</label>
+            <select id="plan-frequency" class="form-select" required>
+              <option value="daily">Daily</option>
+              <option value="weekly">Weekly</option>
+              <option value="monthly" selected>Monthly</option>
+              <option value="yearly">Yearly</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Base Cost ($)</label>
+            <input type="number" step="0.01" id="plan-price" class="form-input" placeholder="400.00" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Minimum Quantity / Seats</label>
+            <input type="number" id="plan-min-qty" class="form-input" value="1" required>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Available From</label>
+            <input type="date" id="plan-from" class="form-input">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Available To</label>
+            <input type="date" id="plan-to" class="form-input">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Description</label>
+          <textarea id="plan-desc" class="form-textarea" rows="2" placeholder="Details of this subscription plan..."></textarea>
+        </div>
+
+        <div style="background:#f1f5f9; padding:1rem; border-radius:6px; margin-top:1rem;">
+          <label class="form-label" style="margin-bottom:0.5rem;">Admin Lifecycle Rules:</label>
+          <div style="display:flex; flex-direction:column; gap:0.5rem; font-size:0.875rem;">
+            <label style="display:flex; align-items:center; gap:0.5rem;">
+              <input type="checkbox" id="plan-rule-autoclose" checked>
+              <strong>Auto-close on end date:</strong> Subscription closes automatically when validity ends.
+            </label>
+            <label style="display:flex; align-items:center; gap:0.5rem;">
+              <input type="checkbox" id="plan-rule-closeearly" checked>
+              <strong>Can close early:</strong> Allows staff or customer to terminate before expiration.
+            </label>
+            <label style="display:flex; align-items:center; gap:0.5rem;">
+              <input type="checkbox" id="plan-rule-pause" checked>
+              <strong>Can pause / resume:</strong> Allows temporary hold on recurring billing.
+            </label>
+            <label style="display:flex; align-items:center; gap:0.5rem;">
+              <input type="checkbox" id="plan-rule-renew" checked>
+              <strong>Can renew:</strong> Allows extending contract upon conclusion.
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('newPlanModal')">Cancel</button>
+        <button type="submit" class="btn btn-primary">Create Plan</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+async function submitNewPlan(event) {
+  event.preventDefault();
+  const body = {
+    name: document.getElementById('plan-name').value,
+    code: document.getElementById('plan-code').value,
+    billing_frequency: document.getElementById('plan-frequency').value,
+    base_price: parseFloat(document.getElementById('plan-price').value),
+    min_quantity: parseInt(document.getElementById('plan-min-qty').value, 10),
+    available_from: document.getElementById('plan-from').value || null,
+    available_to: document.getElementById('plan-to').value || null,
+    description: document.getElementById('plan-desc').value,
+    auto_close_on_end: document.getElementById('plan-rule-autoclose').checked ? 1 : 0,
+    can_close_early: document.getElementById('plan-rule-closeearly').checked ? 1 : 0,
+    can_pause: document.getElementById('plan-rule-pause').checked ? 1 : 0,
+    can_renew: document.getElementById('plan-rule-renew').checked ? 1 : 0
+  };
+
+  const res = await fetch('/api/plans', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  const data = await res.json();
+  if (res.ok) {
+    showToast("Plan created successfully!");
+    setTimeout(() => window.location.reload(), 800);
+  } else {
+    showToast(data.message || "Failed to create plan", "error");
+  }
+}
+</script>
+{% endblock %}
+

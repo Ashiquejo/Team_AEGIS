@@ -1,0 +1,228 @@
+{% extends "base.html" %}
+
+{% block title %}Customer Portal - Brightloop Software{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Welcome, {{ current_user.name }}!</h1>
+    <p class="page-subtitle">Customer Portal for <strong>{{ current_user.company_name or 'Your Account' }}</strong> &bull; Manage subscriptions, accept quotes, and pay invoices online.</p>
+  </div>
+</div>
+
+<!-- Customer Stats -->
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-header">
+      <span class="stat-title">Active Subscriptions</span>
+      <div class="stat-icon" style="background:#ecfdf5; color:#059669;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>
+      </div>
+    </div>
+    <div class="stat-value">{{ active_subscriptions|length }}</div>
+    <div class="stat-hint">Active billing services</div>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-header">
+      <span class="stat-title">Pending Quotes</span>
+      <div class="stat-icon" style="background:#eff6ff; color:#2563eb;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      </div>
+    </div>
+    <div class="stat-value" style="color:#2563eb;">{{ pending_quotes|length }}</div>
+    <div class="stat-hint">Offers ready for your review</div>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-header">
+      <span class="stat-title">Current Balance Due</span>
+      <div class="stat-icon" style="background:#fff7ed; color:#ea580c;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      </div>
+    </div>
+    <div class="stat-value" style="color:{% if total_due > 0 %}#dc2626{% else %}#16a34a{% endif %};">
+      ${{ "{:,.2f}".format(total_due) }}
+    </div>
+    <div class="stat-hint">{% if total_due > 0 %}Unsettled invoices{% else %}Account fully paid{% endif %}</div>
+  </div>
+</div>
+
+<!-- Section: Quotes Pending Customer Acceptance -->
+{% if pending_quotes %}
+<div class="card" style="border: 2px solid #818cf8; margin-bottom: 2rem;">
+  <div class="card-header" style="background: #eef2ff;">
+    <div>
+      <h3 class="card-title" style="color:#3730a3;">Quotations Awaiting Your Acceptance</h3>
+      <p style="font-size:0.85rem; color:#4f46e5; margin-top:0.15rem;">Review the offer lines below and click Accept to activate your subscription directly.</p>
+    </div>
+  </div>
+  <div class="card-body" style="padding: 0;">
+    <div class="table-responsive">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Quotation #</th>
+            <th>Plan Attached</th>
+            <th>Valid Until</th>
+            <th>Offer Amount</th>
+            <th style="text-align: right;">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for q in pending_quotes %}
+          <tr>
+            <td>
+              <strong style="font-size:1rem; color:#4f46e5;">{{ q.subscription_number }}</strong>
+            </td>
+            <td>{{ q.plan_name }} ({{ q.billing_frequency }})</td>
+            <td style="color:#4f46e5; font-weight:600;">{{ q.expiry_date or 'Indefinite' }}</td>
+            <td style="font-weight:800; font-size:1.1rem; color:#0f172a;">
+              ${{ "{:,.2f}".format(q.total_subtotal or 0.0) }} / {{ q.billing_frequency }}
+            </td>
+            <td style="text-align: right;">
+              <button onclick="acceptQuotePortal({{ q.id }})" class="btn btn-success btn-sm">
+                Accept & Activate Offer &rarr;
+              </button>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Section: My Subscriptions -->
+<div class="card" style="margin-bottom: 2rem;">
+  <div class="card-header">
+    <h3 class="card-title">My Subscriptions & Recurring Services</h3>
+  </div>
+  <div class="card-body" style="padding: 0;">
+    <div class="table-responsive">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Subscription #</th>
+            <th>Plan & Cadence</th>
+            <th>Status</th>
+            <th>Start Date</th>
+            <th>Next Renewal / Billing</th>
+            <th>Payment Terms</th>
+            <th style="text-align: right;">Recurring Fee</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for sub in my_subscriptions %}
+          <tr>
+            <td>
+              <strong style="color:#0f172a;">{{ sub.subscription_number }}</strong>
+            </td>
+            <td>
+              <strong>{{ sub.plan_name }}</strong>
+              <div style="font-size:0.75rem; color:#64748b; text-transform:capitalize;">Billed {{ sub.billing_frequency }}</div>
+            </td>
+            <td>
+              <span class="status-pill status-{{ sub.status }}">
+                <span class="status-dot"></span>
+                {{ sub.status }}
+              </span>
+            </td>
+            <td>{{ sub.start_date }}</td>
+            <td>
+              {% if sub.next_billing_date %}
+                <strong>{{ sub.next_billing_date }}</strong>
+              {% else %}
+                <span style="color:#94a3b8;">—</span>
+              {% endif %}
+            </td>
+            <td>{{ sub.payment_terms or 'Net 30' }}</td>
+            <td style="text-align: right; font-weight: 800; color: #0f172a;">
+              ${{ "{:,.2f}".format(sub.total_subtotal or 0.0) }}
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="7" style="text-align: center; color: #94a3b8; padding: 2rem;">
+              You have no subscriptions on file.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Section: My Invoices -->
+<div class="card">
+  <div class="card-header">
+    <h3 class="card-title">My Invoices & Billing Statements</h3>
+  </div>
+  <div class="card-body" style="padding: 0;">
+    <div class="table-responsive">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Invoice #</th>
+            <th>Issue Date</th>
+            <th>Due Date</th>
+            <th>Status</th>
+            <th>Total Amount</th>
+            <th>Balance Due</th>
+            <th style="text-align: right;">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for inv in my_invoices %}
+          <tr>
+            <td>
+              <a href="/invoices/{{ inv.id }}" style="font-weight:700; color:#4f46e5; text-decoration:none;">
+                {{ inv.invoice_number }}
+              </a>
+            </td>
+            <td>{{ inv.issue_date }}</td>
+            <td style="color:{% if inv.is_overdue %}#dc2626; font-weight:700;{% endif %}">
+              {{ inv.due_date }}
+            </td>
+            <td>
+              {% if inv.is_overdue %}
+                <span class="status-pill status-overdue">
+                  <span class="status-dot"></span>
+                  Overdue
+                </span>
+              {% else %}
+                <span class="status-pill status-{{ inv.status }}">
+                  <span class="status-dot"></span>
+                  {{ inv.status }}
+                </span>
+              {% endif %}
+            </td>
+            <td style="font-weight: 700;">${{ "{:,.2f}".format(inv.total_amount) }}</td>
+            <td style="font-weight: 800; color:{% if inv.balance_due > 0 %}#dc2626{% else %}#16a34a{% endif %};">
+              ${{ "{:,.2f}".format(inv.balance_due) }}
+            </td>
+            <td style="text-align: right; white-space: nowrap;">
+              <a href="/invoices/{{ inv.id }}" class="btn btn-secondary btn-sm">View & Print</a>
+              {% if inv.balance_due > 0 %}
+                <button onclick="openPaymentModal({{ inv.id }}, '{{ inv.invoice_number }}', {{ inv.balance_due }})" class="btn btn-success btn-sm">
+                  Pay Now
+                </button>
+              {% endif %}
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="7" style="text-align: center; color: #94a3b8; padding: 2rem;">
+              No billing statements found.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+

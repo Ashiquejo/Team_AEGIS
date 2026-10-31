@@ -1,0 +1,235 @@
+{% extends "base.html" %}
+
+{% block title %}Products & Variants - Brightloop Software{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Products & Product Variants</h1>
+    <p class="page-subtitle">Configure software packages, add-ons, services, and multi-attribute pricing variants.</p>
+  </div>
+  {% if current_user.role == 'admin' %}
+  <div class="header-actions">
+    <button onclick="openModal('newProductModal')" class="btn btn-primary">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Add New Product
+    </button>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Products List with Variants Nested -->
+<div style="display: flex; flex-direction: column; gap: 1.5rem;">
+  {% for p in products %}
+  <div class="card">
+    <div class="card-header">
+      <div>
+        <div style="display:flex; align-items:center; gap:0.5rem;">
+          <h3 class="card-title">{{ p.name }}</h3>
+          <span class="user-pill" style="font-size:0.75rem; text-transform:uppercase; font-weight:700;">
+            {{ p.type }}
+          </span>
+        </div>
+        <p style="font-size:0.85rem; color:#64748b; margin-top:0.2rem;">{{ p.notes or 'No description' }}</p>
+      </div>
+
+      <div style="display:flex; align-items:center; gap:1.5rem;">
+        <div>
+          <span style="font-size:0.75rem; color:#64748b; text-transform:uppercase; font-weight:600;">Sales Price</span>
+          <div style="font-size:1.25rem; font-weight:800; color:#0f172a;">${{ "{:,.2f}".format(p.sales_price) }}</div>
+        </div>
+        <div>
+          <span style="font-size:0.75rem; color:#64748b; text-transform:uppercase; font-weight:600;">Cost Price</span>
+          <div style="font-size:1.1rem; font-weight:600; color:#64748b;">${{ "{:,.2f}".format(p.cost_price) }}</div>
+        </div>
+        {% if current_user.role == 'admin' %}
+        <button onclick="openVariantModal({{ p.id }}, '{{ p.name }}')" class="btn btn-secondary btn-sm">
+          + Add Variant
+        </button>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card-body" style="padding: 0;">
+      <div style="padding: 0.75rem 1.5rem; background: #f8fafc; font-size: 0.8rem; font-weight: 700; color: #475569; border-bottom: 1px solid #e2e8f0;">
+        AVAILABLE VARIANTS & PRICE ADJUSTMENTS
+      </div>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Variant Name</th>
+            <th>SKU</th>
+            <th>Price Adjustment</th>
+            <th style="text-align: right;">Effective Customer Price</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for v in p.variants %}
+          <tr>
+            <td>
+              <strong>{{ v.variant_name }}</strong>
+            </td>
+            <td><code>{{ v.sku or '—' }}</code></td>
+            <td>
+              {% if v.price_adjustment > 0 %}
+                <span style="color:#059669; font-weight:700;">+${{ "{:,.2f}".format(v.price_adjustment) }}</span>
+              {% elif v.price_adjustment < 0 %}
+                <span style="color:#dc2626; font-weight:700;">-${{ "{:,.2f}".format(v.price_adjustment|abs) }}</span>
+              {% else %}
+                <span style="color:#94a3b8;">Base Price</span>
+              {% endif %}
+            </td>
+            <td style="text-align: right; font-weight: 800; color: #0f172a;">
+              ${{ "{:,.2f}".format(p.sales_price + v.price_adjustment) }}
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="4" style="text-align: center; color: #94a3b8; padding: 1rem;">
+              No variants configured. Standard pricing applies.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Modal: Add Product -->
+<div class="modal-overlay" id="newProductModal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3 class="modal-title">Launch New Product</h3>
+      <button class="modal-close" onclick="closeModal('newProductModal')">&times;</button>
+    </div>
+    <form onsubmit="submitNewProduct(event)">
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Product Name</label>
+          <input type="text" id="prod-name" class="form-input" placeholder="e.g. Cloud ERP Core" required>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Type</label>
+            <select id="prod-type" class="form-select" required>
+              <option value="software">Software / SaaS</option>
+              <option value="addon">Add-On Feature</option>
+              <option value="service">Managed Service</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Sales Price ($)</label>
+            <input type="number" step="0.01" id="prod-sales-price" class="form-input" placeholder="400.00" required>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Cost Price ($)</label>
+          <input type="number" step="0.01" id="prod-cost-price" class="form-input" placeholder="120.00">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Notes & Description</label>
+          <textarea id="prod-notes" class="form-textarea" rows="3" placeholder="Enter specifications or sales notes..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('newProductModal')">Cancel</button>
+        <button type="submit" class="btn btn-primary">Create Product</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: Add Variant -->
+<div class="modal-overlay" id="newVariantModal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3 class="modal-title">Add Variant to <span id="modal-prod-title"></span></h3>
+      <button class="modal-close" onclick="closeModal('newVariantModal')">&times;</button>
+    </div>
+    <form onsubmit="submitNewVariant(event)">
+      <div class="modal-body">
+        <input type="hidden" id="var-prod-id">
+        <div class="form-group">
+          <label class="form-label">Variant Name (e.g. Brand, Edition, Tier)</label>
+          <input type="text" id="var-name" class="form-input" placeholder="e.g. Odoo Brand Edition" required>
+          <div class="form-hint">Example from Brightloop specs: 'Odoo Brand Edition adds 560 to the price'</div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Price Adjustment ($)</label>
+            <input type="number" step="0.01" id="var-price" class="form-input" placeholder="560.00" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">SKU</label>
+            <input type="text" id="var-sku" class="form-input" placeholder="ERP-ODOO-560">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('newVariantModal')">Cancel</button>
+        <button type="submit" class="btn btn-primary">Add Variant</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function openVariantModal(prodId, prodName) {
+  document.getElementById('var-prod-id').value = prodId;
+  document.getElementById('modal-prod-title').innerText = prodName;
+  openModal('newVariantModal');
+}
+
+async function submitNewProduct(event) {
+  event.preventDefault();
+  const body = {
+    name: document.getElementById('prod-name').value,
+    type: document.getElementById('prod-type').value,
+    sales_price: parseFloat(document.getElementById('prod-sales-price').value),
+    cost_price: parseFloat(document.getElementById('prod-cost-price').value || 0),
+    notes: document.getElementById('prod-notes').value
+  };
+
+  const res = await fetch('/api/products', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  const data = await res.json();
+  if (res.ok) {
+    showToast("Product created successfully!");
+    setTimeout(() => window.location.reload(), 800);
+  } else {
+    showToast(data.message || "Failed to create product", "error");
+  }
+}
+
+async function submitNewVariant(event) {
+  event.preventDefault();
+  const prodId = document.getElementById('var-prod-id').value;
+  const body = {
+    variant_name: document.getElementById('var-name').value,
+    price_adjustment: parseFloat(document.getElementById('var-price').value || 0),
+    sku: document.getElementById('var-sku').value
+  };
+
+  const res = await fetch(`/api/products/${prodId}/variants`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  const data = await res.json();
+  if (res.ok) {
+    showToast("Variant added successfully!");
+    setTimeout(() => window.location.reload(), 800);
+  } else {
+    showToast(data.message || "Failed to add variant", "error");
+  }
+}
+</script>
+{% endblock %}
+

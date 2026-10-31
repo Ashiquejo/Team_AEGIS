@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+
+{% block title %}Invoices - Brightloop Software{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Invoices & Accounts Receivable</h1>
+    <p class="page-subtitle">Track billing workflow from Draft to Confirmed, Sent, and Paid with automated tax and discount accounting.</p>
+  </div>
+  <div class="header-actions">
+    <a href="/billing-day" class="btn btn-primary">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      Run Billing Day
+    </a>
+  </div>
+</div>
+
+<!-- Filters Bar -->
+<div class="filter-bar">
+  <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+    <a href="/invoices" class="btn btn-sm {% if not current_status %}btn-primary{% else %}btn-secondary{% endif %}">All</a>
+    <a href="/invoices?status=confirmed" class="btn btn-sm {% if current_status == 'confirmed' %}btn-primary{% else %}btn-secondary{% endif %}">Confirmed / Outstanding</a>
+    <a href="/invoices?status=paid" class="btn btn-sm {% if current_status == 'paid' %}btn-primary{% else %}btn-secondary{% endif %}">Paid</a>
+    <a href="/invoices?status=draft" class="btn btn-sm {% if current_status == 'draft' %}btn-primary{% else %}btn-secondary{% endif %}">Drafts</a>
+    <a href="/invoices?status=overdue" class="btn btn-sm {% if current_status == 'overdue' %}btn-danger{% else %}btn-secondary{% endif %}">Overdue Only</a>
+  </div>
+</div>
+
+<!-- Invoices Table -->
+<div class="card">
+  <div class="card-body" style="padding: 0;">
+    <div class="table-responsive">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Invoice #</th>
+            <th>Customer</th>
+            <th>Subscription</th>
+            <th>Issue Date</th>
+            <th>Due Date</th>
+            <th>Status</th>
+            <th>Total Amount</th>
+            <th>Balance Due</th>
+            <th style="text-align: right;">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for inv in invoices %}
+          <tr>
+            <td>
+              <a href="/invoices/{{ inv.id }}" style="font-weight:700; color:#4f46e5; text-decoration:none;">
+                {{ inv.invoice_number }}
+              </a>
+            </td>
+            <td>
+              <strong>{{ inv.company_name or inv.customer_name }}</strong>
+              <div style="font-size:0.75rem; color:#64748b;">{{ inv.customer_email }}</div>
+            </td>
+            <td>
+              {% if inv.subscription_number %}
+                <a href="/subscriptions/{{ inv.subscription_id }}" style="color:#0284c7; text-decoration:none;">
+                  {{ inv.subscription_number }}
+                </a>
+              {% else %}
+                <span style="color:#94a3b8;">One-off</span>
+              {% endif %}
+            </td>
+            <td>{{ inv.issue_date }}</td>
+            <td>
+              {% if inv.is_overdue %}
+                <strong style="color:#dc2626;">{{ inv.due_date }} (Overdue)</strong>
+              {% else %}
+                {{ inv.due_date }}
+              {% endif %}
+            </td>
+            <td>
+              {% if inv.is_overdue %}
+                <span class="status-pill status-overdue">
+                  <span class="status-dot"></span>
+                  Overdue
+                </span>
+              {% else %}
+                <span class="status-pill status-{{ inv.status }}">
+                  <span class="status-dot"></span>
+                  {{ inv.status }}
+                </span>
+              {% endif %}
+            </td>
+            <td style="font-weight:700;">${{ "{:,.2f}".format(inv.total_amount) }}</td>
+            <td style="font-weight:800; color:{% if inv.balance_due > 0 %}#dc2626{% else %}#16a34a{% endif %};">
+              ${{ "{:,.2f}".format(inv.balance_due) }}
+            </td>
+            <td style="text-align: right; white-space: nowrap;">
+              <a href="/invoices/{{ inv.id }}" class="btn btn-secondary btn-sm" title="View & Print">
+                View
+              </a>
+              {% if current_user.role in ['admin', 'staff'] %}
+                {% if inv.status == 'draft' %}
+                  <button onclick="confirmInvoice({{ inv.id }})" class="btn btn-primary btn-sm">Confirm</button>
+                  <button onclick="cancelInvoice({{ inv.id }})" class="btn btn-danger btn-sm">Cancel</button>
+                {% elif inv.status == 'confirmed' %}
+                  <button onclick="sendInvoice({{ inv.id }})" class="btn btn-secondary btn-sm" title="Send to Customer">
+                    Send
+                  </button>
+                  {% if inv.balance_due > 0 %}
+                    <button onclick="openPaymentModal({{ inv.id }}, '{{ inv.invoice_number }}', {{ inv.balance_due }})" class="btn btn-success btn-sm">
+                      Pay
+                    </button>
+                    {% if inv.is_overdue %}
+                      <button onclick="chaseOverdueInvoice({{ inv.id }}, '{{ inv.customer_name }}', '{{ '{:,.2f}'.format(inv.balance_due) }}')" class="btn btn-chase btn-sm">
+                        Chase
+                      </button>
+                    {% endif %}
+                  {% endif %}
+                {% endif %}
+              {% endif %}
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="9" style="text-align:center; padding: 2rem; color:#94a3b8;">
+              No invoices found.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+

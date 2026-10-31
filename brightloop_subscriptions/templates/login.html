@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+
+{% block title %}Sign In - Brightloop Software{% endblock %}
+
+{% block content %}
+<div style="max-width: 480px; margin: 3rem auto;">
+  <div class="card" style="box-shadow: var(--shadow-lg);">
+    <div class="card-header" style="text-align: center; display:block; padding: 2rem 2rem 1rem;">
+      <div style="display:inline-flex; align-items:center; justify-content:center; width:3rem; height:3rem; background:linear-gradient(135deg, #4f46e5 0%, #06b6d4 100%); border-radius:12px; color:white; font-size:1.5rem; font-weight:900; margin-bottom:0.75rem;">
+        B
+      </div>
+      <h2 style="font-size: 1.5rem; font-weight: 800; color:#0f172a;">Sign in to Brightloop</h2>
+      <p style="font-size: 0.875rem; color:#64748b; margin-top:0.25rem;">Access your recurring billing platform or customer portal</p>
+    </div>
+
+    <div class="card-body" style="padding: 1.5rem 2rem;">
+      <form onsubmit="handleLoginSubmit(event)">
+        <div class="form-group">
+          <label class="form-label">Email Address</label>
+          <input type="email" id="login-email" class="form-input" placeholder="you@company.com" required>
+        </div>
+        <div class="form-group">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <label class="form-label" style="margin:0;">Password</label>
+            <a href="javascript:void(0)" onclick="openModal('forgotPasswordModal')" style="font-size:0.8rem; color:#4f46e5; text-decoration:none;">Forgot password?</a>
+          </div>
+          <input type="password" id="login-password" class="form-input" style="margin-top:0.35rem;" required>
+        </div>
+        <button type="submit" class="btn btn-primary" style="width: 100%; padding:0.75rem; font-size:1rem; margin-top:0.5rem;">
+          Sign In &rarr;
+        </button>
+      </form>
+
+      <div style="text-align: center; margin-top: 1.5rem; padding-top: 1.25rem; border-top: 1px solid #e2e8f0; font-size: 0.875rem;">
+        Don't have an account? <a href="/signup" style="color: #4f46e5; font-weight: 600; text-decoration:none;">Create account</a>
+      </div>
+
+      <!-- Quick 1-Click Demo Accounts for Fast Evaluation -->
+      <div style="margin-top: 1.5rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem;">
+        <div style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: #64748b; margin-bottom: 0.5rem; letter-spacing: 0.05em;">
+          Quick 1-Click Evaluation Logins:
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+          <button onclick="switchDemoAccount('admin@brightloop.com', 'Admin@1234#')" class="btn btn-secondary btn-sm" style="justify-content:space-between;">
+            <span><strong style="color:#be185d;">Admin:</strong> Alex Mercer</span>
+            <span style="font-size:0.75rem; color:#64748b;">Full System Control &rarr;</span>
+          </button>
+          <button onclick="switchDemoAccount('sarah.staff@brightloop.com', 'Staff@1234#')" class="btn btn-secondary btn-sm" style="justify-content:space-between;">
+            <span><strong style="color:#15803d;">Staff:</strong> Sarah Jenkins</span>
+            <span style="font-size:0.75rem; color:#64748b;">Quotes & Day-to-Day &rarr;</span>
+          </button>
+          <button onclick="switchDemoAccount('acme@shops.com', 'Customer@1234#')" class="btn btn-secondary btn-sm" style="justify-content:space-between;">
+            <span><strong style="color:#1d4ed8;">Customer:</strong> Acme Corner Shop</span>
+            <span style="font-size:0.75rem; color:#64748b;">Customer Portal &rarr;</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Forgot Password -->
+<div class="modal-overlay" id="forgotPasswordModal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3 class="modal-title">Reset Your Password</h3>
+      <button class="modal-close" onclick="closeModal('forgotPasswordModal')">&times;</button>
+    </div>
+    <form onsubmit="handleForgotSubmit(event)">
+      <div class="modal-body">
+        <p style="font-size:0.875rem; color:#64748b; margin-bottom:1rem;">
+          Enter your registered email address and we will generate a secure reset link for your account.
+        </p>
+        <div class="form-group">
+          <label class="form-label">Registered Email</label>
+          <input type="email" id="forgot-email" class="form-input" placeholder="you@company.com" required>
+        </div>
+        <div id="reset-result-box" style="display:none; margin-top:1rem; padding:1rem; background:#ecfdf5; border-radius:6px; border:1px solid #a7f3d0; font-size:0.85rem; color:#065f46;">
+          <div style="font-weight:700;">Password Reset Link Generated:</div>
+          <p style="margin:0.35rem 0;" id="reset-link-text"></p>
+          <a id="reset-link-action" href="#" class="btn btn-success btn-sm" style="margin-top:0.5rem; display:inline-block;">Proceed to Reset Password &rarr;</a>
+        </div>
+      </div>
+      <div class="modal-footer" id="forgot-modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('forgotPasswordModal')">Cancel</button>
+        <button type="submit" class="btn btn-primary">Generate Reset Link</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+async function handleLoginSubmit(event) {
+  event.preventDefault();
+  const email = document.getElementById('login-email').value;
+  const password = document.getElementById('login-password').value;
+
+  const res = await fetch('/api/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password })
+  });
+  const data = await res.json();
+  if (res.ok) {
+    showToast("Signed in successfully!");
+    if (data.user.role === 'customer') {
+      window.location.href = '/portal';
+    } else {
+      window.location.href = '/dashboard';
+    }
+  } else {
+    showToast(data.message || "Invalid credentials", "error");
+  }
+}
+
+async function handleForgotSubmit(event) {
+  event.preventDefault();
+  const email = document.getElementById('forgot-email').value;
+
+  const res = await fetch('/api/auth/forgot-password', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email })
+  });
+  const data = await res.json();
+  if (res.ok) {
+    document.getElementById('reset-result-box').style.display = 'block';
+    document.getElementById('reset-link-text').innerText = `Simulated Email Sent! Reset link: ${data.reset_url}`;
+    document.getElementById('reset-link-action').href = data.reset_url;
+    showToast("Password reset link generated!");
+  } else {
+    showToast(data.message || "Failed to generate reset link", "error");
+  }
+}
+</script>
+{% endblock %}
+

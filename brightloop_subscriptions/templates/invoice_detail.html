@@ -1,0 +1,223 @@
+{% extends "base.html" %}
+
+{% block title %}Invoice {{ inv.invoice_number }} - Brightloop Software{% endblock %}
+
+{% block content %}
+<!-- Top Action Toolbar (hidden when printing) -->
+<div class="page-header" style="margin-bottom: 1.5rem;">
+  <div>
+    <a href="/invoices" class="btn btn-secondary btn-sm" style="margin-bottom:0.5rem;">&larr; Back to Invoices</a>
+    <h1 class="page-title">{{ inv.invoice_number }}</h1>
+  </div>
+  <div class="header-actions">
+    <button onclick="window.print()" class="btn btn-secondary">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect width="12" height="8" x="6" y="14"/></svg>
+      Print / Save PDF
+    </button>
+    {% if current_user.role in ['admin', 'staff'] %}
+      {% if inv.status == 'draft' %}
+        <button onclick="confirmInvoice({{ inv.id }})" class="btn btn-primary">Confirm Invoice</button>
+        <button onclick="cancelInvoice({{ inv.id }})" class="btn btn-danger">Cancel</button>
+      {% elif inv.status == 'confirmed' %}
+        <button onclick="sendInvoice({{ inv.id }})" class="btn btn-secondary">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
+          Send to Customer
+        </button>
+        {% if inv.balance_due > 0 %}
+          <button onclick="openPaymentModal({{ inv.id }}, '{{ inv.invoice_number }}', {{ inv.balance_due }})" class="btn btn-success">
+            Record Payment
+          </button>
+        {% endif %}
+      {% endif %}
+    {% elif current_user.role == 'customer' and inv.balance_due > 0 %}
+      <button onclick="openPaymentModal({{ inv.id }}, '{{ inv.invoice_number }}', {{ inv.balance_due }})" class="btn btn-success">
+        Pay Balance Now (${{ "{:,.2f}".format(inv.balance_due) }})
+      </button>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Formal Printable Invoice Document -->
+<div class="invoice-container">
+  <!-- Invoice Header -->
+  <div class="invoice-header-row">
+    <div>
+      <div style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.5rem;">
+        <span class="brand-badge" style="width:2.2rem; height:2.2rem; font-size:1.1rem;">B</span>
+        <span style="font-weight:900; font-size:1.5rem; color:#1e1b4b;">Brightloop Software</span>
+      </div>
+      <div style="color:#64748b; font-size:0.875rem; line-height:1.4;">
+        Brightloop Software Operations<br>
+        100 Enterprise Boulevard, Suite 500<br>
+        billing@brightloop.com &bull; +1 (800) 555-LOOP
+      </div>
+    </div>
+
+    <div style="text-align: right;">
+      <h2 style="font-size:2rem; font-weight:900; color:#0f172a; letter-spacing:-0.03em;">INVOICE</h2>
+      <div style="font-size:1.1rem; font-weight:700; color:#4f46e5; margin-top:0.25rem;">
+        {{ inv.invoice_number }}
+      </div>
+      <div style="margin-top:0.5rem;">
+        <span class="status-pill status-{{ inv.status }}" style="font-size:0.85rem; padding:0.3rem 0.8rem;">
+          <span class="status-dot"></span>
+          {{ inv.status }}
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Billed To & Dates Row -->
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-bottom: 2rem;">
+    <div>
+      <div style="font-size:0.75rem; font-weight:700; text-transform:uppercase; color:#94a3b8; letter-spacing:0.05em; margin-bottom:0.35rem;">
+        BILLED TO:
+      </div>
+      <div style="font-size:1.1rem; font-weight:800; color:#0f172a;">
+        {{ inv.company_name or inv.customer_name }}
+      </div>
+      <div style="color:#475569; font-size:0.9rem; margin-top:0.25rem;">
+        Attn: {{ inv.customer_name }}<br>
+        Email: {{ inv.customer_email }}<br>
+        {% if inv.phone %}Phone: {{ inv.phone }}<br>{% endif %}
+      </div>
+    </div>
+
+    <div style="text-align: right;">
+      <table style="margin-left: auto; font-size:0.9rem; border-collapse:collapse;">
+        <tr>
+          <td style="padding: 0.25rem 1rem; color: #64748b; text-align:right;">Issue Date:</td>
+          <td style="padding: 0.25rem 0; font-weight: 700; text-align:right;">{{ inv.issue_date }}</td>
+        </tr>
+        <tr>
+          <td style="padding: 0.25rem 1rem; color: #64748b; text-align:right;">Due Date:</td>
+          <td style="padding: 0.25rem 0; font-weight: 700; text-align:right; color:{% if inv.is_overdue %}#dc2626{% else %}#0f172a{% endif %};">
+            {{ inv.due_date }}
+          </td>
+        </tr>
+        {% if inv.subscription_number %}
+        <tr>
+          <td style="padding: 0.25rem 1rem; color: #64748b; text-align:right;">Subscription:</td>
+          <td style="padding: 0.25rem 0; font-weight: 700; text-align:right; color:#4f46e5;">
+            {{ inv.subscription_number }}
+          </td>
+        </tr>
+        {% endif %}
+        {% if inv.billing_period_start and inv.billing_period_end %}
+        <tr>
+          <td style="padding: 0.25rem 1rem; color: #64748b; text-align:right;">Period:</td>
+          <td style="padding: 0.25rem 0; font-size:0.85rem; text-align:right;">
+            {{ inv.billing_period_start }} to {{ inv.billing_period_end }}
+          </td>
+        </tr>
+        {% endif %}
+      </table>
+    </div>
+  </div>
+
+  <!-- Line Items Table -->
+  <table class="data-table" style="margin-bottom: 2rem;">
+    <thead>
+      <tr>
+        <th>Description</th>
+        <th style="text-align: center;">Qty</th>
+        <th style="text-align: right;">Unit Price</th>
+        <th style="text-align: right;">Tax</th>
+        <th style="text-align: right;">Line Total</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for line in lines %}
+      <tr>
+        <td>
+          <strong style="color:#0f172a;">{{ line.description }}</strong>
+        </td>
+        <td style="text-align: center;">{{ line.quantity }}</td>
+        <td style="text-align: right;">${{ "{:,.2f}".format(line.unit_price) }}</td>
+        <td style="text-align: right; color:#64748b;">
+          ${{ "{:,.2f}".format(line.tax_amount) }}
+          {% if line.tax_rate > 0 %}<span style="font-size:0.75rem;">({{ line.tax_rate }}%)</span>{% endif %}
+        </td>
+        <td style="text-align: right; font-weight: 700;">
+          ${{ "{:,.2f}".format(line.line_total) }}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <!-- Invoice Totals Box -->
+  <div class="invoice-totals">
+    <div class="totals-row">
+      <span>Subtotal</span>
+      <span>${{ "{:,.2f}".format(inv.subtotal) }}</span>
+    </div>
+
+    {% if inv.discount_amount > 0 %}
+    <div class="totals-row" style="color:#16a34a; font-weight:600;">
+      <span>Discount Applied</span>
+      <span>-${{ "{:,.2f}".format(inv.discount_amount) }}</span>
+    </div>
+    {% endif %}
+
+    <div class="totals-row">
+      <span>Taxes</span>
+      <span>${{ "{:,.2f}".format(inv.tax_amount) }}</span>
+    </div>
+
+    <div class="totals-row grand-total">
+      <span>Total Amount</span>
+      <span>${{ "{:,.2f}".format(inv.total_amount) }}</span>
+    </div>
+
+    <div class="totals-row" style="color:#16a34a; font-weight:600; margin-top:0.5rem;">
+      <span>Amount Paid</span>
+      <span>${{ "{:,.2f}".format(inv.amount_paid) }}</span>
+    </div>
+
+    <div class="totals-row" style="font-size:1.1rem; font-weight:800; color:{% if inv.balance_due > 0 %}#dc2626{% else %}#16a34a{% endif %};">
+      <span>Balance Due</span>
+      <span>${{ "{:,.2f}".format(inv.balance_due) }}</span>
+    </div>
+  </div>
+
+  <!-- Payments Recorded History -->
+  <div style="margin-top: 3rem; border-top: 1px solid #e2e8f0; padding-top: 1.5rem;">
+    <h4 style="font-size:0.95rem; font-weight:700; color:#334155; margin-bottom:0.75rem;">Recorded Payments & Transactions</h4>
+    <table class="data-table" style="font-size:0.85rem;">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Payment Method</th>
+          <th>Reference / Note</th>
+          <th style="text-align: right;">Amount Paid</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in payments %}
+        <tr>
+          <td>{{ p.payment_date }}</td>
+          <td><strong>{{ p.payment_method }}</strong></td>
+          <td>{{ p.reference_note or '—' }}</td>
+          <td style="text-align: right; font-weight: 700; color: #16a34a;">
+            ${{ "{:,.2f}".format(p.amount) }}
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="4" style="text-align: center; color: #94a3b8; padding: 1rem;">
+            No payments recorded yet for this invoice.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Invoice Footer Terms -->
+  <div style="margin-top: 2rem; padding: 1rem; background: #f8fafc; border-radius: 6px; font-size: 0.8rem; color: #64748b;">
+    <strong>Payment Instructions & Terms:</strong> Payment is due according to the payment terms specified above. Wire transfers should reference invoice number <code>{{ inv.invoice_number }}</code>. For billing inquiries, contact <code>billing@brightloop.com</code>.
+  </div>
+</div>
+{% endblock %}
+

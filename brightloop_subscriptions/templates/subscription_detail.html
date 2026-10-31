@@ -1,0 +1,259 @@
+{% extends "base.html" %}
+
+{% block title %}Subscription {{ sub.subscription_number }} - Brightloop Software{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div style="display:flex; align-items:center; gap:0.75rem;">
+      <h1 class="page-title">{{ sub.subscription_number }}</h1>
+      <span class="status-pill status-{{ sub.status }}" style="font-size:0.9rem; padding:0.3rem 0.8rem;">
+        <span class="status-dot"></span>
+        {{ sub.status }}
+      </span>
+    </div>
+    <p class="page-subtitle">
+      Customer: <strong>{{ sub.company_name or sub.customer_name }}</strong> &bull; Plan: <strong>{{ sub.plan_name }}</strong> ({{ sub.billing_frequency }})
+    </p>
+  </div>
+
+  <!-- State Machine Action Buttons -->
+  <div class="header-actions">
+    {% if current_user.role in ['admin', 'staff'] %}
+      {% if sub.status == 'draft' %}
+        <button onclick="updateSubscriptionStatus({{ sub.id }}, 'quotation')" class="btn btn-primary">
+          Send Quotation to Customer &rarr;
+        </button>
+      {% elif sub.status == 'quotation' %}
+        <button onclick="updateSubscriptionStatus({{ sub.id }}, 'confirmed')" class="btn btn-primary">
+          Confirm Quote &rarr;
+        </button>
+      {% elif sub.status == 'confirmed' %}
+        <button onclick="updateSubscriptionStatus({{ sub.id }}, 'active')" class="btn btn-success">
+          Activate Subscription &rarr;
+        </button>
+      {% elif sub.status == 'active' %}
+        {% if sub.can_pause %}
+          <button onclick="updateSubscriptionStatus({{ sub.id }}, 'paused')" class="btn btn-warning">
+            Pause Subscription
+          </button>
+        {% endif %}
+        {% if sub.can_close_early %}
+          <button onclick="updateSubscriptionStatus({{ sub.id }}, 'closed')" class="btn btn-danger">
+            Close Early
+          </button>
+        {% endif %}
+      {% elif sub.status == 'paused' %}
+        <button onclick="updateSubscriptionStatus({{ sub.id }}, 'active')" class="btn btn-success">
+          Resume Subscription
+        </button>
+      {% elif sub.status == 'closed' %}
+        {% if sub.can_renew %}
+          <button onclick="updateSubscriptionStatus({{ sub.id }}, 'active')" class="btn btn-primary">
+            Renew Subscription
+          </button>
+        {% endif %}
+      {% endif %}
+    {% endif %}
+  </div>
+</div>
+
+<!-- Visual Lifecycle Stepper -->
+<div class="workflow-steps">
+  <div class="step-item {% if sub.status in ['draft', 'quotation', 'confirmed', 'active', 'closed'] %}completed{% endif %}">
+    <div class="step-num">1</div>
+    <div class="step-label">Draft</div>
+  </div>
+  <div class="step-arrow">&rarr;</div>
+
+  <div class="step-item {% if sub.status in ['quotation', 'confirmed', 'active', 'closed'] %}completed{% elif sub.status == 'draft' %}active{% endif %}">
+    <div class="step-num">2</div>
+    <div class="step-label">Quotation</div>
+  </div>
+  <div class="step-arrow">&rarr;</div>
+
+  <div class="step-item {% if sub.status in ['confirmed', 'active', 'closed'] %}completed{% elif sub.status == 'quotation' %}active{% endif %}">
+    <div class="step-num">3</div>
+    <div class="step-label">Confirmed</div>
+  </div>
+  <div class="step-arrow">&rarr;</div>
+
+  <div class="step-item {% if sub.status in ['active', 'closed'] %}completed{% elif sub.status == 'confirmed' %}active{% endif %}">
+    <div class="step-num">4</div>
+    <div class="step-label">Active</div>
+  </div>
+  <div class="step-arrow">&rarr;</div>
+
+  <div class="step-item {% if sub.status == 'closed' %}completed{% endif %}">
+    <div class="step-num">5</div>
+    <div class="step-label">Closed</div>
+  </div>
+</div>
+
+<!-- Details Grid -->
+<div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem; margin-bottom: 2rem;">
+  <!-- Left: Line items -->
+  <div class="card">
+    <div class="card-header">
+      <h3 class="card-title">Contract Line Items & Products</h3>
+    </div>
+    <div class="card-body" style="padding: 0;">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Product & Variant</th>
+            <th>Quantity</th>
+            <th>Unit Price</th>
+            <th>Tax</th>
+            <th style="text-align: right;">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for line in lines %}
+          <tr>
+            <td>
+              <strong>{{ line.product_name }}</strong>
+              {% if line.variant_name %}
+                <div style="font-size: 0.8rem; color: #4f46e5; font-weight:600;">
+                  Variant: {{ line.variant_name }} 
+                  {% if line.price_adjustment > 0 %}
+                    (+${{ "{:,.2f}".format(line.price_adjustment) }})
+                  {% endif %}
+                </div>
+              {% endif %}
+            </td>
+            <td>{{ line.quantity }}</td>
+            <td>${{ "{:,.2f}".format(line.unit_price) }}</td>
+            <td>{{ line.tax_name or 'No Tax (0%)' }}</td>
+            <td style="text-align: right; font-weight: 700;">
+              ${{ "{:,.2f}".format(line.subtotal) }}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+
+      <!-- Subtotal calculation footer -->
+      <div style="padding: 1.25rem 1.5rem; background: #f8fafc; border-top: 1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
+        <div>
+          {% if sub.discount_code %}
+            <span class="status-pill status-active">
+              Discount Applied: {{ sub.discount_code }} ({{ sub.discount_desc }})
+            </span>
+          {% else %}
+            <span style="font-size: 0.85rem; color: #64748b;">No active discount applied</span>
+          {% endif %}
+        </div>
+        <div style="text-align: right;">
+          <span style="font-size: 0.85rem; color: #64748b;">Recurring Billing Total:</span>
+          <div style="font-size: 1.5rem; font-weight: 800; color: #0f172a;">
+            ${{ "{:,.2f}".format(total_subtotal) }}
+            <span style="font-size: 0.8rem; font-weight: 500; color: #64748b;">/ {{ sub.billing_frequency }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: Contract & Lifecycle Settings -->
+  <div class="card">
+    <div class="card-header">
+      <h3 class="card-title">Terms & Schedule</h3>
+    </div>
+    <div class="card-body">
+      <div style="margin-bottom: 1rem;">
+        <span class="stat-title">Customer</span>
+        <div style="font-weight: 700; margin-top: 0.2rem;">{{ sub.company_name or sub.customer_name }}</div>
+        <div style="font-size: 0.8rem; color: #64748b;">{{ sub.customer_email }}</div>
+      </div>
+
+      <div style="margin-bottom: 1rem;">
+        <span class="stat-title">Payment Terms</span>
+        <div style="font-weight: 700; margin-top: 0.2rem;">{{ sub.payment_terms or 'Net 30' }}</div>
+      </div>
+
+      <div style="margin-bottom: 1rem;">
+        <span class="stat-title">Start Date</span>
+        <div style="font-weight: 700; margin-top: 0.2rem;">{{ sub.start_date }}</div>
+      </div>
+
+      <div style="margin-bottom: 1rem;">
+        <span class="stat-title">Expiry Date</span>
+        <div style="font-weight: 700; margin-top: 0.2rem;">{{ sub.expiry_date or 'Ongoing / Auto-Renewing' }}</div>
+      </div>
+
+      <div style="margin-bottom: 1rem;">
+        <span class="stat-title">Next Scheduled Billing Date</span>
+        <div style="font-weight: 700; color: #4f46e5; margin-top: 0.2rem;">
+          {{ sub.next_billing_date or 'None Scheduled' }}
+        </div>
+      </div>
+
+      <div style="border-top: 1px solid #e2e8f0; padding-top: 1rem; font-size: 0.8rem; color: #64748b;">
+        <div style="font-weight: 600; margin-bottom: 0.35rem; color: #334155;">Plan Lifecycle Rules:</div>
+        <div>&bull; Auto-close on end: <strong>{{ 'Yes' if sub.auto_close_on_end else 'No' }}</strong></div>
+        <div>&bull; Can close early: <strong>{{ 'Yes' if sub.can_close_early else 'No' }}</strong></div>
+        <div>&bull; Can pause: <strong>{{ 'Yes' if sub.can_pause else 'No' }}</strong></div>
+        <div>&bull; Can renew: <strong>{{ 'Yes' if sub.can_renew else 'No' }}</strong></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Invoices generated for this subscription -->
+<div class="card">
+  <div class="card-header">
+    <h3 class="card-title">Generated Invoices History</h3>
+  </div>
+  <div class="card-body" style="padding: 0;">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Invoice #</th>
+          <th>Issue Date</th>
+          <th>Due Date</th>
+          <th>Status</th>
+          <th>Total Amount</th>
+          <th>Amount Paid</th>
+          <th>Balance Due</th>
+          <th style="text-align: right;">Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for inv in invoices %}
+        <tr>
+          <td>
+            <a href="/invoices/{{ inv.id }}" style="font-weight:700; color:#4f46e5; text-decoration:none;">
+              {{ inv.invoice_number }}
+            </a>
+          </td>
+          <td>{{ inv.issue_date }}</td>
+          <td>{{ inv.due_date }}</td>
+          <td>
+            <span class="status-pill status-{{ inv.status }}">
+              <span class="status-dot"></span>
+              {{ inv.status }}
+            </span>
+          </td>
+          <td>${{ "{:,.2f}".format(inv.total_amount) }}</td>
+          <td style="color:#16a34a;">${{ "{:,.2f}".format(inv.amount_paid) }}</td>
+          <td style="font-weight:700; color:{% if inv.balance_due > 0 %}#dc2626{% else %}#16a34a{% endif %};">
+            ${{ "{:,.2f}".format(inv.balance_due) }}
+          </td>
+          <td style="text-align: right;">
+            <a href="/invoices/{{ inv.id }}" class="btn btn-secondary btn-sm">View & Print</a>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="8" style="text-align:center; padding: 1.5rem; color:#94a3b8;">
+            No invoices generated yet for this subscription.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+

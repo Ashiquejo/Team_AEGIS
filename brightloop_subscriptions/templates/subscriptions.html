@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+
+{% block title %}Subscriptions - Brightloop Software{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Subscriptions Management</h1>
+    <p class="page-subtitle">Unified lifecycle management: from Draft quotes to Confirmed, Active, and Closed subscriptions.</p>
+  </div>
+  <div class="header-actions">
+    <a href="/quotes" class="btn btn-primary">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      New Quote from Template
+    </a>
+  </div>
+</div>
+
+<!-- Filter Tabs -->
+<div class="filter-bar">
+  <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+    <a href="/subscriptions" class="btn btn-sm {% if not current_status %}btn-primary{% else %}btn-secondary{% endif %}">All ({{ counts.all }})</a>
+    <a href="/subscriptions?status=active" class="btn btn-sm {% if current_status == 'active' %}btn-primary{% else %}btn-secondary{% endif %}">Active ({{ counts.active }})</a>
+    <a href="/subscriptions?status=quotation" class="btn btn-sm {% if current_status == 'quotation' %}btn-primary{% else %}btn-secondary{% endif %}">Quotations ({{ counts.quotation }})</a>
+    <a href="/subscriptions?status=confirmed" class="btn btn-sm {% if current_status == 'confirmed' %}btn-primary{% else %}btn-secondary{% endif %}">Confirmed ({{ counts.confirmed }})</a>
+    <a href="/subscriptions?status=draft" class="btn btn-sm {% if current_status == 'draft' %}btn-primary{% else %}btn-secondary{% endif %}">Drafts ({{ counts.draft }})</a>
+    <a href="/subscriptions?status=closed" class="btn btn-sm {% if current_status == 'closed' %}btn-primary{% else %}btn-secondary{% endif %}">Closed ({{ counts.closed }})</a>
+  </div>
+</div>
+
+<!-- Subscriptions Table -->
+<div class="card">
+  <div class="card-body" style="padding: 0;">
+    <div class="table-responsive">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Subscription #</th>
+            <th>Customer</th>
+            <th>Plan & Cadence</th>
+            <th>Status</th>
+            <th>Start Date</th>
+            <th>Next Billing</th>
+            <th>Payment Terms</th>
+            <th>MRR / Value</th>
+            <th style="text-align: right;">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for sub in subscriptions %}
+          <tr>
+            <td>
+              <a href="/subscriptions/{{ sub.id }}" style="font-weight:700; color:#4f46e5; text-decoration:none;">
+                {{ sub.subscription_number }}
+              </a>
+            </td>
+            <td>
+              <strong>{{ sub.company_name or sub.customer_name }}</strong>
+              <div style="font-size:0.75rem; color:#64748b;">{{ sub.customer_email }}</div>
+            </td>
+            <td>
+              <div><strong>{{ sub.plan_name }}</strong></div>
+              <span style="font-size:0.75rem; color:#64748b; text-transform:capitalize;">Billed {{ sub.billing_frequency }}</span>
+            </td>
+            <td>
+              <span class="status-pill status-{{ sub.status }}">
+                <span class="status-dot"></span>
+                {{ sub.status }}
+              </span>
+            </td>
+            <td>{{ sub.start_date }}</td>
+            <td>
+              {% if sub.next_billing_date %}
+                <strong>{{ sub.next_billing_date }}</strong>
+              {% else %}
+                <span style="color:#94a3b8;">—</span>
+              {% endif %}
+            </td>
+            <td>{{ sub.payment_terms or 'Net 30' }}</td>
+            <td style="font-weight:700; color:#0f172a;">
+              ${{ "{:,.2f}".format(sub.total_subtotal or 0.0) }}
+            </td>
+            <td style="text-align: right;">
+              <a href="/subscriptions/{{ sub.id }}" class="btn btn-secondary btn-sm">
+                View Lifecycle &rarr;
+              </a>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="9" style="text-align:center; padding: 2rem; color:#94a3b8;">
+              No subscriptions found matching this filter.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
