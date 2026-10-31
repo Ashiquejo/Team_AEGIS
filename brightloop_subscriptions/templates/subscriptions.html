@@ -16,8 +16,8 @@
   </div>
 </div>
 
-<!-- Filter Tabs -->
-<div class="filter-bar">
+<!-- Filter & Search Bar -->
+<div class="filter-bar" style="justify-content: space-between;">
   <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
     <a href="/subscriptions" class="btn btn-sm {% if not current_status %}btn-primary{% else %}btn-secondary{% endif %}">All ({{ counts.all }})</a>
     <a href="/subscriptions?status=active" class="btn btn-sm {% if current_status == 'active' %}btn-primary{% else %}btn-secondary{% endif %}">Active ({{ counts.active }})</a>
@@ -26,13 +26,18 @@
     <a href="/subscriptions?status=draft" class="btn btn-sm {% if current_status == 'draft' %}btn-primary{% else %}btn-secondary{% endif %}">Drafts ({{ counts.draft }})</a>
     <a href="/subscriptions?status=closed" class="btn btn-sm {% if current_status == 'closed' %}btn-primary{% else %}btn-secondary{% endif %}">Closed ({{ counts.closed }})</a>
   </div>
+
+  <div class="search-box-wrapper">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    <input type="text" class="form-input" placeholder="Instant filter subscriptions..." onkeyup="filterTable(this.value, 'subs-table')" style="padding-top:0.4rem; padding-bottom:0.4rem; font-size:0.85rem;">
+  </div>
 </div>
 
 <!-- Subscriptions Table -->
 <div class="card">
   <div class="card-body" style="padding: 0;">
     <div class="table-responsive">
-      <table class="data-table">
+      <table class="data-table" id="subs-table">
         <thead>
           <tr>
             <th>Subscription #</th>

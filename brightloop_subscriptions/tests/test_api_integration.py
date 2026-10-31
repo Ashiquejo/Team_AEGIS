@@ -109,6 +109,11 @@ class TestWebIntegration(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertIn("Discount Rules", body)
 
+        # Admin access to /activity
+        status, _, body, _ = self.make_request("GET", "/activity", cookies=admin_cookie)
+        self.assertEqual(status, 200)
+        self.assertIn("Audit Trail", body)
+
         # 2. Login as Customer
         status, _, _, cust_data = self.make_request("POST", "/api/auth/login", body={
             "email": "acme@shops.com",

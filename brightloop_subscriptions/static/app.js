@@ -291,3 +291,32 @@ async function acceptQuotePortal(subId) {
   }
 }
 
+
+
+// Instant Client-Side Table Filter
+function filterTable(query, tableId) {
+  const table = document.getElementById(tableId);
+  if (!table) return;
+  const rows = table.querySelectorAll("tbody tr");
+  const q = query.toLowerCase().trim();
+  
+  rows.forEach(row => {
+    const text = row.innerText.toLowerCase();
+    row.style.display = text.includes(q) ? "" : "none";
+  });
+}
+
+// Quick Copy Helper
+function copyToClipboard(text, msg = "Copied to clipboard!") {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(() => showToast(msg));
+  } else {
+    const input = document.createElement("input");
+    input.value = text;
+    document.body.appendChild(input);
+    input.select();
+    document.execCommand("copy");
+    document.body.removeChild(input);
+    showToast(msg);
+  }
+}

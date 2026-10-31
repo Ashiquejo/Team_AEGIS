@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+
+{% block title %}Activity & Audit Trail - Brightloop Software{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Audit Trail & Activity Log</h1>
+    <p class="page-subtitle">Real-time immutable ledger of system actions: quotes, subscription status changes, billing day batches, payments, and overdue chases.</p>
+  </div>
+  <div class="header-actions">
+    <span class="user-pill" style="background:rgba(99,102,241,0.12); color:#4f46e5; font-weight:700;">
+      Total Logged Events: {{ logs|length }}
+    </span>
+  </div>
+</div>
+
+<!-- Filters Bar -->
+<form method="GET" action="/activity" class="filter-bar">
+  <div class="filter-item">
+    <label style="font-weight:700; font-size:0.85rem;">Action Type:</label>
+    <select name="action" class="form-select" style="width: auto; padding: 0.35rem 0.65rem;" onchange="this.form.submit()">
+      <option value="">All Actions</option>
+      {% for a in actions %}
+        <option value="{{ a }}" {% if selected_action == a %}selected{% endif %}>{{ a|replace('_', ' ')|title }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="filter-item">
+    <label style="font-weight:700; font-size:0.85rem;">Entity:</label>
+    <select name="entity_type" class="form-select" style="width: auto; padding: 0.35rem 0.65rem;" onchange="this.form.submit()">
+      <option value="">All Entities</option>
+      {% for e in entities %}
+        <option value="{{ e }}" {% if selected_entity == e %}selected{% endif %}>{{ e|title }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  {% if selected_action or selected_entity %}
+  <a href="/activity" class="btn btn-secondary btn-sm">Clear Filters</a>
+  {% endif %}
+</form>
+
+<!-- Activity Table -->
+<div class="card">
+  <div class="card-header">
+    <h3 class="card-title">Chronological Event Timeline</h3>
+  </div>
+  <div class="card-body" style="padding: 0;">
+    <div class="table-responsive">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Timestamp</th>
+            <th>Action</th>
+            <th>Entity Type</th>
+            <th>Entity ID</th>
+            <th>Triggered By</th>
+            <th>Details & Context</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for log in logs %}
+          <tr>
+            <td style="font-size:0.82rem; color:var(--text-muted); white-space:nowrap;">
+              {{ log.created_at }}
+            </td>
+            <td>
+              {% if 'payment' in log.action %}
+                <span class="status-pill status-active"><span class="status-dot"></span>{{ log.action|replace('_', ' ')|title }}</span>
+              {% elif 'billing' in log.action %}
+                <span class="status-pill status-confirmed"><span class="status-dot"></span>{{ log.action|replace('_', ' ')|title }}</span>
+              {% elif 'chase' in log.action %}
+                <span class="status-pill status-overdue"><span class="status-dot"></span>{{ log.action|replace('_', ' ')|title }}</span>
+              {% elif 'quote' in log.action %}
+                <span class="status-pill status-quotation"><span class="status-dot"></span>{{ log.action|replace('_', ' ')|title }}</span>
+              {% else %}
+                <span class="status-pill status-draft"><span class="status-dot"></span>{{ log.action|replace('_', ' ')|title }}</span>
+              {% endif %}
+            </td>
+            <td>
+              <strong style="text-transform: capitalize;">{{ log.entity_type }}</strong>
+            </td>
+            <td>
+              {% if log.entity_id %}
+                <span style="font-family: monospace; font-weight:700;">#{{ log.entity_id }}</span>
+              {% else %}
+                <span style="color:var(--text-light);">-</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if log.user_name %}
+                <strong>{{ log.user_name }}</strong>
+                <div style="font-size:0.75rem; color:var(--text-muted);">{{ log.user_role|title }}</div>
+              {% else %}
+                <span style="color:var(--text-muted); font-style:italic;">System Automation</span>
+              {% endif %}
+            </td>
+            <td style="font-size:0.875rem;">
+              {{ log.details }}
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="6" style="text-align:center; padding: 2.5rem; color:var(--text-muted);">
+              No activity logs found matching the selected criteria.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+

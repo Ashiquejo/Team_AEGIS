@@ -17,7 +17,7 @@
 </div>
 
 <!-- Filters Bar -->
-<div class="filter-bar">
+<div class="filter-bar" style="justify-content: space-between;">
   <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
     <a href="/invoices" class="btn btn-sm {% if not current_status %}btn-primary{% else %}btn-secondary{% endif %}">All</a>
     <a href="/invoices?status=confirmed" class="btn btn-sm {% if current_status == 'confirmed' %}btn-primary{% else %}btn-secondary{% endif %}">Confirmed / Outstanding</a>
@@ -25,13 +25,18 @@
     <a href="/invoices?status=draft" class="btn btn-sm {% if current_status == 'draft' %}btn-primary{% else %}btn-secondary{% endif %}">Drafts</a>
     <a href="/invoices?status=overdue" class="btn btn-sm {% if current_status == 'overdue' %}btn-danger{% else %}btn-secondary{% endif %}">Overdue Only</a>
   </div>
+
+  <div class="search-box-wrapper">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    <input type="text" class="form-input" placeholder="Instant filter invoices..." onkeyup="filterTable(this.value, 'invoices-table')" style="padding-top:0.4rem; padding-bottom:0.4rem; font-size:0.85rem;">
+  </div>
 </div>
 
 <!-- Invoices Table -->
 <div class="card">
   <div class="card-body" style="padding: 0;">
     <div class="table-responsive">
-      <table class="data-table">
+      <table class="data-table" id="invoices-table">
         <thead>
           <tr>
             <th>Invoice #</th>

@@ -733,6 +733,50 @@ def handle_customer_portal(req):
     }, req)
 
 
+# Activity & Audit Trail
+def handle_activity(req):
+    if not req.user or req.user["role"] not in ("admin", "staff"):
+        return redirect("/login")
+
+    action_filter = req.get_query("action")
+    entity_filter = req.get_query("entity_type")
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+        query = """
+            SELECT l.*, u.name as user_name, u.email as user_email, u.role as user_role
+            FROM activity_logs l
+            LEFT JOIN users u ON l.user_id = u.id
+            WHERE 1=1
+        """
+        params = []
+        if action_filter:
+            query += " AND l.action = ?"
+            params.append(action_filter)
+        if entity_filter:
+            query += " AND l.entity_type = ?"
+            params.append(entity_filter)
+        query += " ORDER BY l.id DESC LIMIT 150"
+
+        cursor.execute(query, params)
+        logs = rows_to_dicts(cursor.fetchall())
+
+        cursor.execute("SELECT DISTINCT action FROM activity_logs ORDER BY action ASC")
+        actions = [r["action"] for r in cursor.fetchall()]
+
+        cursor.execute("SELECT DISTINCT entity_type FROM activity_logs ORDER BY entity_type ASC")
+        entities = [r["entity_type"] for r in cursor.fetchall()]
+
+    return render("activity.html", {
+        "active_page": "activity",
+        "logs": logs,
+        "actions": actions,
+        "entities": entities,
+        "selected_action": action_filter,
+        "selected_entity": entity_filter
+    }, req)
+
+
 # -------------------------------------------------------------
 # REST API Endpoints
 # -------------------------------------------------------------
@@ -1126,6 +1170,8 @@ def dispatch(req):
         return handle_taxes(req)
     if path == "/quotes" and method == "GET":
         return handle_quotes(req)
+    if path == "/activity" and method == "GET":
+        return handle_activity(req)
     if path == "/portal" and method == "GET":
         return handle_customer_portal(req)
 

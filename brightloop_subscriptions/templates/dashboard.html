@@ -125,23 +125,25 @@
 </div>
 
 <!-- Charts & Breakdowns Row -->
-<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
   <!-- MRR by Plan -->
   <div class="card">
     <div class="card-header">
       <h3 class="card-title">Recurring Revenue by Plan</h3>
+      <span class="status-pill status-active"><span class="status-dot"></span>MRR ${{ "{:,.2f}".format(summary.mrr) }}</span>
     </div>
     <div class="card-body">
       {% for pname, pval in summary.plan_mrr_breakdown.items() %}
-        <div style="margin-bottom: 1rem;">
-          <div style="display:flex; justify-content:space-between; font-size:0.875rem; margin-bottom:0.35rem;">
+        <div style="margin-bottom: 1.15rem;">
+          <div style="display:flex; justify-content:space-between; font-size:0.875rem; margin-bottom:0.4rem;">
             <strong>{{ pname }}</strong>
-            <span>${{ "{:,.2f}".format(pval) }}/mo</span>
+            <span style="font-weight:700; color:var(--primary);">${{ "{:,.2f}".format(pval) }}/mo</span>
           </div>
           {% set pct = (pval / summary.mrr * 100) if summary.mrr > 0 else 0 %}
-          <div style="background-color:#e2e8f0; height:8px; border-radius:4px; overflow:hidden;">
-            <div style="background-color:#4f46e5; height:100%; width: {{ pct }}%;"></div>
+          <div style="background-color:rgba(226, 232, 240, 0.6); height:10px; border-radius:6px; overflow:hidden; position:relative;">
+            <div style="background:var(--primary-gradient); height:100%; width: {{ pct }}%; border-radius:6px; transition: width 0.5s ease;"></div>
           </div>
+          <div style="font-size:0.75rem; color:var(--text-muted); margin-top:0.25rem;">{{ "%.1f"|format(pct) }}% of total monthly recurring revenue</div>
         </div>
       {% else %}
         <div style="color:#94a3b8; text-align:center; padding:1.5rem;">No active plan revenue matching filter.</div>
@@ -149,28 +151,99 @@
     </div>
   </div>
 
+  <!-- Subscription Status Distribution -->
+  <div class="card">
+    <div class="card-header">
+      <h3 class="card-title">Subscription Portfolio Mix</h3>
+      <span class="status-pill status-quotation"><span class="status-dot"></span>Lifecycle Mix</span>
+    </div>
+    <div class="card-body">
+      {% set total_subs = summary.status_distribution.values()|sum %}
+      <div style="display:flex; align-items:center; justify-content:space-around; margin-bottom: 1.25rem;">
+        <!-- SVG Donut Chart -->
+        <div style="position:relative; width:130px; height:130px; flex-shrink:0;">
+          <svg viewBox="0 0 100 100" style="width:100%; height:100%; transform: rotate(-90deg);">
+            <circle cx="50" cy="50" r="38" fill="none" stroke="rgba(226,232,240,0.5)" stroke-width="14"></circle>
+            {% set active_count = summary.status_distribution.get('active', 0) %}
+            {% set conf_count = summary.status_distribution.get('confirmed', 0) %}
+            {% set quote_count = summary.status_distribution.get('quotation', 0) %}
+            {% set draft_count = summary.status_distribution.get('draft', 0) %}
+            {% set other_count = total_subs - active_count - conf_count - quote_count - draft_count %}
+            
+            {% set c = 238.76 %}
+            {% set p_active = (active_count / total_subs * c) if total_subs > 0 else 0 %}
+            {% set p_conf = (conf_count / total_subs * c) if total_subs > 0 else 0 %}
+            {% set p_quote = (quote_count / total_subs * c) if total_subs > 0 else 0 %}
+            {% set p_draft = (draft_count / total_subs * c) if total_subs > 0 else 0 %}
+            
+            <!-- Active slice (green) -->
+            <circle cx="50" cy="50" r="38" fill="none" stroke="#10b981" stroke-width="14"
+                    stroke-dasharray="{{ p_active }} {{ c - p_active }}" stroke-dashoffset="0"></circle>
+            <!-- Confirmed slice (purple) -->
+            <circle cx="50" cy="50" r="38" fill="none" stroke="#a855f7" stroke-width="14"
+                    stroke-dasharray="{{ p_conf }} {{ c - p_conf }}" stroke-dashoffset="{{ -p_active }}"></circle>
+            <!-- Quotation slice (sky) -->
+            <circle cx="50" cy="50" r="38" fill="none" stroke="#0ea5e9" stroke-width="14"
+                    stroke-dasharray="{{ p_quote }} {{ c - p_quote }}" stroke-dashoffset="{{ -(p_active + p_conf) }}"></circle>
+            <!-- Draft slice (slate) -->
+            <circle cx="50" cy="50" r="38" fill="none" stroke="#94a3b8" stroke-width="14"
+                    stroke-dasharray="{{ p_draft }} {{ c - p_draft }}" stroke-dashoffset="{{ -(p_active + p_conf + p_quote) }}"></circle>
+          </svg>
+          <div style="position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;">
+            <span style="font-size:1.4rem; font-weight:800; color:#0f172a;">{{ total_subs }}</span>
+            <span style="font-size:0.65rem; color:#64748b; text-transform:uppercase; font-weight:700;">Total</span>
+          </div>
+        </div>
+
+        <!-- Legend -->
+        <div style="display:flex; flex-direction:column; gap:0.5rem; font-size:0.82rem;">
+          <div style="display:flex; align-items:center; gap:0.5rem;">
+            <span style="width:10px; height:10px; border-radius:50%; background:#10b981; display:inline-block;"></span>
+            <span>Active: <strong>{{ summary.status_distribution.get('active', 0) }}</strong></span>
+          </div>
+          <div style="display:flex; align-items:center; gap:0.5rem;">
+            <span style="width:10px; height:10px; border-radius:50%; background:#a855f7; display:inline-block;"></span>
+            <span>Confirmed: <strong>{{ summary.status_distribution.get('confirmed', 0) }}</strong></span>
+          </div>
+          <div style="display:flex; align-items:center; gap:0.5rem;">
+            <span style="width:10px; height:10px; border-radius:50%; background:#0ea5e9; display:inline-block;"></span>
+            <span>Quotation: <strong>{{ summary.status_distribution.get('quotation', 0) }}</strong></span>
+          </div>
+          <div style="display:flex; align-items:center; gap:0.5rem;">
+            <span style="width:10px; height:10px; border-radius:50%; background:#94a3b8; display:inline-block;"></span>
+            <span>Draft/Other: <strong>{{ summary.status_distribution.get('draft', 0) + other_count }}</strong></span>
+          </div>
+        </div>
+      </div>
+      <div style="text-align:center;">
+        <a href="/subscriptions" class="btn btn-secondary btn-sm" style="width:100%;">Inspect Subscriptions Lifecycle &rarr;</a>
+      </div>
+    </div>
+  </div>
+
   <!-- Overdue Aging Buckets -->
   <div class="card">
     <div class="card-header">
-      <h3 class="card-title">Overdue Receivables Aging Analysis</h3>
+      <h3 class="card-title">Receivables Aging Analysis</h3>
+      <span class="status-pill status-overdue"><span class="status-dot"></span>Overdue Risk</span>
     </div>
     <div class="card-body">
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-        <div style="padding: 1rem; background: #fff1f2; border-radius: 8px; border: 1px solid #fecdd3;">
-          <div style="font-size:0.75rem; font-weight:700; color:#9f1239;">1 - 15 DAYS OVERDUE</div>
-          <div style="font-size:1.4rem; font-weight:800; color:#e11d48; margin-top:0.25rem;">${{ "{:,.2f}".format(summary.aging['1_15_days']) }}</div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.85rem;">
+        <div style="padding: 0.85rem; background: rgba(255, 241, 242, 0.7); border-radius: 8px; border: 1px solid rgba(254, 205, 211, 0.8);">
+          <div style="font-size:0.72rem; font-weight:800; color:#9f1239;">1 - 15 DAYS OVERDUE</div>
+          <div style="font-size:1.3rem; font-weight:800; color:#e11d48; margin-top:0.2rem;">${{ "{:,.2f}".format(summary.aging['1_15_days']) }}</div>
         </div>
-        <div style="padding: 1rem; background: #fff7ed; border-radius: 8px; border: 1px solid #fed7aa;">
-          <div style="font-size:0.75rem; font-weight:700; color:#9a3412;">16 - 30 DAYS OVERDUE</div>
-          <div style="font-size:1.4rem; font-weight:800; color:#ea580c; margin-top:0.25rem;">${{ "{:,.2f}".format(summary.aging['16_30_days']) }}</div>
+        <div style="padding: 0.85rem; background: rgba(255, 247, 237, 0.7); border-radius: 8px; border: 1px solid rgba(254, 215, 170, 0.8);">
+          <div style="font-size:0.72rem; font-weight:800; color:#9a3412;">16 - 30 DAYS OVERDUE</div>
+          <div style="font-size:1.3rem; font-weight:800; color:#ea580c; margin-top:0.2rem;">${{ "{:,.2f}".format(summary.aging['16_30_days']) }}</div>
         </div>
-        <div style="padding: 1rem; background: #fef2f2; border-radius: 8px; border: 1px solid #fca5a5;">
-          <div style="font-size:0.75rem; font-weight:700; color:#991b1b;">31 - 60 DAYS OVERDUE</div>
-          <div style="font-size:1.4rem; font-weight:800; color:#dc2626; margin-top:0.25rem;">${{ "{:,.2f}".format(summary.aging['31_60_days']) }}</div>
+        <div style="padding: 0.85rem; background: rgba(254, 242, 242, 0.7); border-radius: 8px; border: 1px solid rgba(252, 165, 165, 0.8);">
+          <div style="font-size:0.72rem; font-weight:800; color:#991b1b;">31 - 60 DAYS OVERDUE</div>
+          <div style="font-size:1.3rem; font-weight:800; color:#dc2626; margin-top:0.2rem;">${{ "{:,.2f}".format(summary.aging['31_60_days']) }}</div>
         </div>
-        <div style="padding: 1rem; background: #450a0a; border-radius: 8px; color:white;">
-          <div style="font-size:0.75rem; font-weight:700; color:#fca5a5;">60+ DAYS (HIGH RISK)</div>
-          <div style="font-size:1.4rem; font-weight:800; color:#ffffff; margin-top:0.25rem;">${{ "{:,.2f}".format(summary.aging['60_plus_days']) }}</div>
+        <div style="padding: 0.85rem; background: linear-gradient(135deg, #450a0a 0%, #1e1b4b 100%); border-radius: 8px; color:white; border: 1px solid rgba(239, 68, 68, 0.3);">
+          <div style="font-size:0.72rem; font-weight:800; color:#fca5a5;">60+ DAYS (CRITICAL)</div>
+          <div style="font-size:1.3rem; font-weight:800; color:#ffffff; margin-top:0.2rem;">${{ "{:,.2f}".format(summary.aging['60_plus_days']) }}</div>
         </div>
       </div>
     </div>
